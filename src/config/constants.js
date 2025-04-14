@@ -19,7 +19,8 @@ const RECORD_TYPES = {
 
 // Tipos de operação
 const OPERATION_TYPES = {
-  CREDITO: 'C'
+  CREDITO: 'C',
+  DEBITO: 'D'
 };
 
 // Tipos de serviço/pagamento
@@ -76,7 +77,8 @@ const NOTIFICATION_CODES = {
 // Layout de arquivo e lote
 const LAYOUT_VERSIONS = {
   ARQUIVO: '080',
-  LOTE: '040'
+  LOTE: '040',
+  CNAB240: '086'
 };
 
 // Códigos de retorno/erro

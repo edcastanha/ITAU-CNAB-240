@@ -334,60 +334,37 @@ describe('API CNAB 240', () => {
     expect(fs.existsSync(response.body.caminho)).toBe(true);
   });
 
-  test('POST /api/cnab240/fornecedores com dados inválidos deve retornar status 400', async () => {
-    const payload = {
-      empresa: {
-        // Dados incompletos da empresa
-        tipo_inscricao: 2,
-        inscricao_numero: '12345678901234'
-        // Faltando nome, agencia, conta, dac
-      },
-      pagamentos: [
-        {
-          favorecido: {
-            tipo_inscricao: 2,
-            inscricao_numero: '98765432101234',
-            nome: 'FORNECEDOR TESTE LTDA',
-            banco: '341',
-            agencia: '4321',
-            conta: '987654321',
-            dac: '1'
-          },
-          dados: {
-            data: '2025-04-15',
-            valor: 1500.75,
-            seu_numero: '123456789'
+  describe('POST /api/cnab240/fornecedores', () => {
+    test('com dados inválidos deve retornar status 400', async () => {
+      const response = await request(app)
+        .post('/api/cnab240/fornecedores')
+        .send({
+          empresa: {
+            nome: 'EMPRESA TESTE'
           }
-        }
-      ]
-    };
+        });
+      
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toBe('Dados da empresa incompletos. Tipo de inscrição, número de inscrição e nome são obrigatórios');
+      expect(response.body.errors).toBeDefined();
+      expect(response.body.errors.length).toBeGreaterThan(0);
+    });
 
-    const response = await request(app)
-      .post('/api/cnab240/fornecedores')
-      .send(payload);
-    
-    expect(response.status).toBe(400);
-    expect(response.body.success).toBe(false);
-    expect(response.body.message).toBe('Erro de validação');
-    expect(response.body.errors).toBeDefined();
-    expect(response.body.errors.length).toBeGreaterThan(0);
-  });
-
-  test('POST /api/cnab240/fornecedores sem pagamentos deve retornar status 400', async () => {
-    const payload = {
-      empresa: dadosEmpresa,
-      pagamentos: [] // Array vazio
-    };
-
-    const response = await request(app)
-      .post('/api/cnab240/fornecedores')
-      .send(payload);
-    
-    expect(response.status).toBe(400);
-    expect(response.body.success).toBe(false);
-    expect(response.body.message).toBe('Erro de validação');
-    expect(response.body.errors).toBeDefined();
-    expect(response.body.errors.length).toBeGreaterThan(0);
+    test('sem pagamentos deve retornar status 400', async () => {
+      const response = await request(app)
+        .post('/api/cnab240/fornecedores')
+        .send({
+          empresa: dadosEmpresa,
+          pagamentos: []
+        });
+      
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toBe('Array de pagamentos é obrigatório e não pode estar vazio');
+      expect(response.body.errors).toBeDefined();
+      expect(response.body.errors.length).toBeGreaterThan(0);
+    });
   });
 
   test('POST para endpoint inexistente deve retornar status 404', async () => {

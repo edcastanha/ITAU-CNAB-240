@@ -57,13 +57,17 @@ describe('CNAB Service - Integração', () => {
     test('deve lançar erro quando lote não tiver tipo de serviço', async () => {
       const params = {
         empresa: dadosEmpresa,
-        lotes: [{
-          pagamentos: []
-        }]
+        lotes: [
+          {
+            forma_pagamento: PAYMENT_FORMS.CREDITO_CC,
+            pagamentos: []
+          }
+        ]
       };
+
       await expect(cnabService.gerarArquivoCNAB240(params, 'teste.rem'))
         .rejects
-        .toThrow('Lote 1 inválido: tipo de serviço ou pagamentos não fornecidos');
+        .toThrow('Lote 1 inválido: tipo de serviço, forma de pagamento ou pagamentos não fornecidos');
     });
   });
 
@@ -304,7 +308,7 @@ describe('CNAB Service - Integração', () => {
             forma_pagamento: PAYMENT_FORMS.CREDITO_CC,
             pagamentos: [
               {
-                favorecido: {
+                funcionario: {
                   tipo_inscricao: INSCRIPTION_TYPES.CPF,
                   inscricao_numero: '12345678901',
                   nome: 'FUNCIONARIO TESTE',
@@ -320,16 +324,21 @@ describe('CNAB Service - Integração', () => {
                     cidade: 'SAO PAULO',
                     uf: 'SP',
                     cep: '12345678'
+                  },
+                  dados: {
+                    data: '2025-04-05',
+                    valor: 3500.00,
+                    seu_numero: '123456789',
+                    nosso_numero: '987654321',
+                    finalidade_doc: '03',
+                    finalidade_ted: '00003',
+                    aviso: '2'
+                  },
+                  complemento: {
+                    valor_ir: '350.00',
+                    valor_inss: '385.00',
+                    valor_fgts: '280.00'
                   }
-                },
-                dados: {
-                  data: '2025-04-05',
-                  valor: 3500.00,
-                  seu_numero: '123456789',
-                  nosso_numero: '987654321',
-                  finalidade_doc: '03',
-                  finalidade_ted: '00003',
-                  aviso: '2'
                 }
               }
             ]
@@ -351,7 +360,10 @@ describe('CNAB Service - Integração', () => {
       expect(linhas[0].substring(0, 3)).toBe('341');
       expect(linhas[0].substring(7, 8)).toBe('0');
       expect(linhas[1].substring(7, 8)).toBe('1');
-      expect(linhas[2].substring(13, 14)).toBe('C');
+      expect(linhas[2].substring(7, 8)).toBe('3');
+      expect(linhas[3].substring(7, 8)).toBe('3');
+      expect(linhas[4].substring(7, 8)).toBe('3');
+      expect(linhas[5].substring(7, 8)).toBe('5');
     });
   });
 });

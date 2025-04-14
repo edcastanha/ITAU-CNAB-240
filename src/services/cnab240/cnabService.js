@@ -411,73 +411,111 @@ function processarLoteTributos(params) {
 /**
  * Processa um lote de pagamentos de salários
  * @param {Object} params - Parâmetros do lote
+ * @param {Object} params.empresa - Dados da empresa
+ * @param {number} params.numero_lote - Número do lote
+ * @param {Array} params.pagamentos - Array de pagamentos
  * @returns {Object} - Linhas geradas e quantidade de registros
+ * @throws {Error} - Se os parâmetros obrigatórios não forem fornecidos ou forem inválidos
  */
 function processarLoteSalarios(params) {
   const { empresa, numero_lote, pagamentos } = params;
   
   // Validações básicas
-  if (!empresa || !numero_lote || !pagamentos || !pagamentos.length) {
-    throw new Error('Parâmetros obrigatórios não fornecidos para processar lote de salários');
+  if (!empresa) {
+    throw new Error('Dados da empresa não fornecidos');
+  }
+  
+  if (!numero_lote || numero_lote <= 0) {
+    throw new Error('Número do lote inválido');
+  }
+  
+  if (!pagamentos || !Array.isArray(pagamentos) || pagamentos.length === 0) {
+    throw new Error('Lista de pagamentos inválida ou vazia');
+  }
+  
+  // Validações da empresa
+  if (!empresa.agencia || !empresa.conta || !empresa.dac || !empresa.nome) {
+    throw new Error('Dados da empresa incompletos');
   }
   
   // Inicializa contadores e arrays
   let linhas = [];
   let quantidadeRegistros = 2; // Header e trailer de lote
+  let somatoriaValores = 0;
   
-  // Gera o header do lote
-  const headerLote = gerarHeaderLote({
-    empresa,
-    numero_lote,
-    tipo_servico: SERVICE_TYPES.SALARIOS
-  });
-  linhas.push(headerLote);
-  
-  // Processa cada pagamento
-  for (const pagamento of pagamentos) {
-    const { funcionario } = pagamento;
+  try {
+    // Gera o header do lote
+    const headerLote = gerarHeaderLote({
+      empresa,
+      numero_lote,
+      tipo_servico: SERVICE_TYPES.SALARIOS,
+      forma_pagamento: PAYMENT_FORMS.CREDITO_CC,
+      finalidade_lote: 'PAGAMENTO DE SALARIOS'
+    });
+    linhas.push(headerLote);
     
-    if (!funcionario) {
-      throw new Error('Dados do funcionário não fornecidos');
+    // Processa cada pagamento
+    for (const pagamento of pagamentos) {
+      const { funcionario } = pagamento;
+      
+      if (!funcionario) {
+        throw new Error('Dados do funcionário não fornecidos');
+      }
+      
+      // Validações do funcionário
+      if (!funcionario.nome || !funcionario.cpf || !funcionario.banco || 
+          !funcionario.agencia || !funcionario.conta || !funcionario.dac) {
+        throw new Error('Dados do funcionário incompletos');
+      }
+      
+      // Gera os segmentos para cada funcionário
+      const segmentoA = gerarSegmentoA({
+        numero_lote,
+        numero_registro: quantidadeRegistros,
+        funcionario
+      });
+      linhas.push(segmentoA);
+      quantidadeRegistros++;
+      
+      const segmentoB = gerarSegmentoB({
+        numero_lote,
+        numero_registro: quantidadeRegistros,
+        funcionario
+      });
+      linhas.push(segmentoB);
+      quantidadeRegistros++;
+      
+      const segmentoC = gerarSegmentoC({
+        numero_lote,
+        numero_registro: quantidadeRegistros,
+        funcionario
+      });
+      linhas.push(segmentoC);
+      quantidadeRegistros++;
+      
+      // Adiciona o valor ao somatório
+      if (funcionario.valor) {
+        somatoriaValores += funcionario.valor;
+      }
     }
     
-    // Gera os segmentos para cada funcionário
-    const segmentoA = gerarSegmentoA({
+    // Gera o trailer do lote
+    const trailerLote = gerarTrailerLote({
       numero_lote,
-      numero_registro: quantidadeRegistros,
-      funcionario
+      quantidade_registros: quantidadeRegistros,
+      somatoria_valores: somatoriaValores
     });
-    linhas.push(segmentoA);
-    quantidadeRegistros++;
+    linhas.push(trailerLote);
     
-    const segmentoB = gerarSegmentoB({
-      numero_lote,
-      numero_registro: quantidadeRegistros,
-      funcionario
-    });
-    linhas.push(segmentoB);
-    quantidadeRegistros++;
+    return {
+      linhas,
+      quantidade_registros: quantidadeRegistros,
+      somatoria_valores: somatoriaValores
+    };
     
-    const segmentoC = gerarSegmentoC({
-      numero_lote,
-      numero_registro: quantidadeRegistros,
-      funcionario
-    });
-    linhas.push(segmentoC);
-    quantidadeRegistros++;
+  } catch (error) {
+    throw new Error(`Erro ao processar lote de salários: ${error.message}`);
   }
-  
-  // Gera o trailer do lote
-  const trailerLote = gerarTrailerLote({
-    numero_lote,
-    quantidade_registros: quantidadeRegistros
-  });
-  linhas.push(trailerLote);
-  
-  return {
-    linhas,
-    quantidade_registros: quantidadeRegistros
-  };
 }
 
 /**

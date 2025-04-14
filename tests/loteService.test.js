@@ -4,8 +4,15 @@
 
 const { 
   gerarHeaderLote, 
-  gerarTrailerLote 
-} = require('../src/services/cnab240/loteService');
+  gerarTrailerLote,
+  processarLoteSalarios
+} = require('../../src/services/cnab240/cnabService');
+
+const { 
+  INSCRIPTION_TYPES,
+  SERVICE_TYPES,
+  PAYMENT_FORMS
+} = require('../../src/config/constants');
 
 describe('Lote Service - CNAB 240', () => {
   describe('gerarHeaderLote', () => {
@@ -108,6 +115,101 @@ describe('Lote Service - CNAB 240', () => {
       expect(() => {
         gerarTrailerLote({});
       }).toThrow('Parâmetros obrigatórios não fornecidos');
+    });
+  });
+
+  describe('processarLoteSalarios', () => {
+    test('deve processar um lote de salários corretamente', () => {
+      const params = {
+        empresa: {
+          tipo_inscricao: INSCRIPTION_TYPES.CNPJ,
+          inscricao_numero: '12345678901234',
+          nome: 'EMPRESA TESTE LTDA',
+          agencia: '1234',
+          conta: '123456',
+          dac: '7'
+        },
+        numero_lote: 1,
+        pagamentos: [
+          {
+            funcionario: {
+              tipo_inscricao: INSCRIPTION_TYPES.CPF,
+              inscricao_numero: '12345678901',
+              nome: 'FUNCIONARIO TESTE',
+              banco: '341',
+              agencia: '1234',
+              conta: '123456',
+              dac: '7',
+              endereco: {
+                logradouro: 'RUA FUNCIONARIO',
+                numero: '789',
+                complemento: 'APTO 101',
+                bairro: 'CENTRO',
+                cidade: 'SAO PAULO',
+                uf: 'SP',
+                cep: '12345678'
+              },
+              dados: {
+                data: '2025-04-05',
+                valor: 3500.00,
+                seu_numero: '123456789',
+                nosso_numero: '987654321',
+                finalidade_doc: '03',
+                finalidade_ted: '00003',
+                aviso: '2'
+              },
+              complemento: {
+                valor_ir: '350.00',
+                valor_inss: '385.00',
+                valor_fgts: '280.00'
+              }
+            }
+          }
+        ]
+      };
+
+      const resultado = processarLoteSalarios(params);
+      
+      expect(resultado.linhas).toBeDefined();
+      expect(resultado.linhas.length).toBe(5); // Header + 3 segmentos + Trailer
+      expect(resultado.quantidade_registros).toBe(5);
+      
+      // Verifica o header do lote
+      expect(resultado.linhas[0].substring(0, 3)).toBe('341');
+      expect(resultado.linhas[0].substring(7, 8)).toBe('1');
+      
+      // Verifica os segmentos
+      expect(resultado.linhas[1].substring(13, 14)).toBe('A');
+      expect(resultado.linhas[2].substring(13, 14)).toBe('B');
+      expect(resultado.linhas[3].substring(13, 14)).toBe('C');
+      
+      // Verifica o trailer do lote
+      expect(resultado.linhas[4].substring(7, 8)).toBe('5');
+    });
+
+    test('deve lançar erro quando parâmetros obrigatórios não são fornecidos', () => {
+      expect(() => {
+        processarLoteSalarios({});
+      }).toThrow('Parâmetros obrigatórios não fornecidos para processar lote de salários');
+    });
+
+    test('deve lançar erro quando dados do funcionário não são fornecidos', () => {
+      const params = {
+        empresa: {
+          tipo_inscricao: INSCRIPTION_TYPES.CNPJ,
+          inscricao_numero: '12345678901234',
+          nome: 'EMPRESA TESTE LTDA',
+          agencia: '1234',
+          conta: '123456',
+          dac: '7'
+        },
+        numero_lote: 1,
+        pagamentos: [{}]
+      };
+
+      expect(() => {
+        processarLoteSalarios(params);
+      }).toThrow('Dados do funcionário não fornecidos');
     });
   });
 });
