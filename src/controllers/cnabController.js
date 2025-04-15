@@ -13,6 +13,7 @@ const { processarLoteBoletos } = require('../services/cnab240/boletoService');
 const { processarLoteSalarios } = require('../services/cnab240/salarioService');
 const { processarLoteTributos } = require('../services/cnab240/tributoService');
 const { processarLotePIX } = require('../services/cnab240/pixService');
+const { validateFornecedores, validateBoletos, validatePIX, validateTributos, validateSalarios } = require('../validators/validator');
 
 // Diretório para salvar os arquivos gerados
 const OUTPUT_DIR = path.join(process.cwd(), 'output');
