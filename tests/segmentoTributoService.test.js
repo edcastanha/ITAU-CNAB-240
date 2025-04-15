@@ -7,6 +7,7 @@ const {
   gerarSegmentoN,
   gerarSegmentoW
 } = require('../src/services/cnab240/segmentoTributoService');
+const { BANK_CODES, INSCRIPTION_TYPES } = require('../src/config/constants');
 
 describe('Segmento Tributo Service - CNAB 240', () => {
   describe('gerarSegmentoO', () => {
@@ -168,6 +169,139 @@ describe('Segmento Tributo Service - CNAB 240', () => {
       expect(() => {
         gerarSegmentoW({});
       }).toThrow('Parâmetros obrigatórios não fornecidos');
+    });
+  });
+});
+
+describe('Segmento Tributo Service', () => {
+  const dadosFavorecido = {
+    nome: 'FAVORECIDO TESTE',
+    cpf: '12345678901',
+    banco: '033',
+    agencia: '1234',
+    conta: '12345678',
+    dac: '9',
+    valor: 2000.00,
+    endereco: {
+      logradouro: 'RUA TESTE',
+      numero: '123',
+      complemento: 'SALA 1',
+      cidade: 'SAO PAULO',
+      cep: '12345678',
+      estado: 'SP'
+    }
+  };
+
+  const dadosTributo = {
+    valor: 2000.00,
+    data_vencimento: '20240101',
+    codigo_tributo: '0001',
+    codigo_receita: '1234',
+    tipo_identificacao: '1',
+    numero_identificacao: '12345678901',
+    codigo_identificacao: '1234',
+    competencia: '202401',
+    periodo: '202401',
+    numero_referencia: '123456',
+    valor_principal: 2000.00,
+    valor_multa: 100.00,
+    valor_juros: 50.00,
+    valor_encargos: 25.00,
+    valor_desconto: 0.00
+  };
+
+  const dadosGare = {
+    inscricao_estadual: '123456789012',
+    inscricao_divida: '1234567890123',
+    periodo_referencia: '032025',
+    numero_parcela: 1,
+    valor_receita: 1000.00,
+    valor_juros: 50.00,
+    valor_multa: 100.00,
+    valor_encargos: 25.00
+  };
+
+  describe('gerarSegmentoN', () => {
+    it('deve gerar segmento N com sucesso', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1,
+        favorecido: dadosFavorecido,
+        dados_tributo: dadosTributo
+      };
+
+      const result = gerarSegmentoN(params);
+
+      expect(result).toHaveLength(240);
+      expect(result).toContain(BANK_CODES.SANTANDER);
+      expect(result).toContain(dadosFavorecido.nome);
+      expect(result).toContain(dadosTributo.valor.toString());
+    });
+
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1
+      };
+
+      expect(() => gerarSegmentoN(params))
+        .toThrow('Parâmetros obrigatórios não fornecidos para gerar o Segmento N');
+    });
+  });
+
+  describe('gerarSegmentoO', () => {
+    it('deve gerar segmento O com sucesso', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1,
+        favorecido: dadosFavorecido,
+        dados_tributo: dadosTributo
+      };
+
+      const result = gerarSegmentoO(params);
+
+      expect(result).toHaveLength(240);
+      expect(result).toContain(BANK_CODES.SANTANDER);
+      expect(result).toContain(dadosTributo.codigo_tributo);
+      expect(result).toContain(dadosTributo.codigo_receita);
+    });
+
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1
+      };
+
+      expect(() => gerarSegmentoO(params))
+        .toThrow('Parâmetros obrigatórios não fornecidos para gerar o Segmento O');
+    });
+  });
+
+  describe('gerarSegmentoW', () => {
+    it('deve gerar segmento W com sucesso', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1,
+        gare: dadosGare
+      };
+
+      const result = gerarSegmentoW(params);
+
+      expect(result).toHaveLength(240);
+      expect(result).toContain(BANK_CODES.SANTANDER);
+      expect(result).toContain(dadosGare.inscricao_estadual);
+      expect(result).toContain(dadosGare.inscricao_divida);
+      expect(result).toContain(dadosGare.periodo_referencia);
+    });
+
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1
+      };
+
+      expect(() => gerarSegmentoW(params))
+        .toThrow('Parâmetros obrigatórios não fornecidos para gerar o Segmento W');
     });
   });
 });

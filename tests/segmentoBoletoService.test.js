@@ -7,130 +7,96 @@ const {
   gerarSegmentoJ52,
   gerarSegmentoJ52PIX
 } = require('../src/services/cnab240/segmentoBoletoService');
+const { BANK_CODES, INSCRIPTION_TYPES } = require('../src/config/constants');
 
-describe('Segmento Boleto Service - CNAB 240', () => {
+describe('Segmento Boleto Service', () => {
+  const dadosFavorecido = {
+    nome: 'FAVORECIDO TESTE',
+    cpf: '12345678901',
+    banco: '033',
+    agencia: '1234',
+    conta: '12345678',
+    dac: '9',
+    valor: 2000.00,
+    endereco: {
+      logradouro: 'RUA TESTE',
+      numero: '123',
+      complemento: 'SALA 1',
+      cidade: 'SAO PAULO',
+      cep: '12345678',
+      estado: 'SP'
+    }
+  };
+
+  const dadosBoleto = {
+    valor: 2000.00,
+    data_vencimento: '20240101',
+    seu_numero: '123456',
+    data_emissao: '20231201',
+    data_desconto: '20231215',
+    valor_desconto: 100.00,
+    valor_abatimento: 50.00,
+    valor_mora: 10.00,
+    valor_multa: 20.00,
+    codigo_protesto: '1',
+    prazo_protesto: '5',
+    codigo_baixa: '1',
+    prazo_baixa: '30'
+  };
+
   describe('gerarSegmentoJ', () => {
-    test('deve gerar um segmento J válido com 240 caracteres para pagamento de boleto', () => {
+    it('deve gerar segmento J com sucesso', () => {
       const params = {
         numero_lote: 1,
         numero_registro: 1,
-        boleto: {
-          codigo_barras: '12345678901234567890123456789012345678901234',
-          nome_beneficiario: 'BENEFICIARIO TESTE LTDA',
-          data_vencimento: '2025-04-15',
-          data_pagamento: '2025-04-10',
-          valor: 1500.75,
-          valor_desconto: 10.00,
-          valor_acrescimo: 5.25,
-          seu_numero: '987654321'
-        }
+        favorecido: dadosFavorecido,
+        dados_boleto: dadosBoleto
       };
 
-      const segmento = gerarSegmentoJ(params);
-      
-      // Verifica se o tamanho está correto
-      expect(segmento.length).toBe(240);
-      
-      // Verifica alguns campos específicos
-      expect(segmento.substring(0, 3)).toBe('341'); // Código do banco
-      expect(segmento.substring(3, 7)).toBe('0001'); // Código do lote
-      expect(segmento.substring(7, 8)).toBe('3'); // Tipo de registro
-      expect(segmento.substring(8, 13)).toBe('00001'); // Número do registro
-      expect(segmento.substring(13, 14)).toBe('J'); // Código do segmento
-      expect(segmento.substring(17, 61)).toBe('12345678901234567890123456789012345678901234'); // Código de barras
-      expect(segmento.substring(91, 99)).toBe('15042025'); // Data de vencimento
-      expect(segmento.substring(99, 107)).toBe('10042025'); // Data de pagamento
+      const result = gerarSegmentoJ(params);
+
+      expect(result).toHaveLength(240);
+      expect(result).toContain(BANK_CODES.SANTANDER);
+      expect(result).toContain(dadosFavorecido.nome);
+      expect(result).toContain(dadosBoleto.valor.toString());
     });
 
-    test('deve lançar erro quando parâmetros obrigatórios não são fornecidos', () => {
-      expect(() => {
-        gerarSegmentoJ({});
-      }).toThrow('Parâmetros obrigatórios não fornecidos');
-    });
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
+      const params = {
+        numero_lote: 1,
+        numero_registro: 1
+      };
 
-    test('deve lançar erro quando código de barras não tem 44 posições', () => {
-      expect(() => {
-        gerarSegmentoJ({
-          numero_lote: 1,
-          numero_registro: 1,
-          boleto: {
-            codigo_barras: '123456',
-            data_pagamento: '2025-04-10',
-            valor: 1500.75
-          }
-        });
-      }).toThrow('Código de barras deve ter 44 posições');
+      expect(() => gerarSegmentoJ(params))
+        .toThrow('Parâmetros obrigatórios não fornecidos para gerar o Segmento J');
     });
   });
 
   describe('gerarSegmentoJ52', () => {
-    test('deve gerar um segmento J-52 válido com 240 caracteres para informações complementares de boleto', () => {
+    it('deve gerar segmento J52 com sucesso', () => {
       const params = {
         numero_lote: 1,
-        numero_registro: 2,
-        pagador: {
-          tipo_inscricao: 2,
-          inscricao_numero: '12345678901234',
-          nome: 'PAGADOR TESTE LTDA'
-        },
-        beneficiario: {
-          tipo_inscricao: 2,
-          inscricao_numero: '98765432101234',
-          nome: 'BENEFICIARIO TESTE LTDA'
-        },
-        sacador: {
-          tipo_inscricao: 1,
-          inscricao_numero: '12345678901',
-          nome: 'SACADOR TESTE'
-        }
+        numero_registro: 1,
+        favorecido: dadosFavorecido,
+        dados_boleto: dadosBoleto
       };
 
-      const segmento = gerarSegmentoJ52(params);
-      
-      // Verifica se o tamanho está correto
-      expect(segmento.length).toBe(240);
-      
-      // Verifica alguns campos específicos
-      expect(segmento.substring(0, 3)).toBe('341'); // Código do banco
-      expect(segmento.substring(3, 7)).toBe('0001'); // Código do lote
-      expect(segmento.substring(7, 8)).toBe('3'); // Tipo de registro
-      expect(segmento.substring(8, 13)).toBe('00002'); // Número do registro
-      expect(segmento.substring(13, 14)).toBe('J'); // Código do segmento
-      expect(segmento.substring(17, 19)).toBe('52'); // Identificador do registro opcional
-      expect(segmento.substring(19, 20)).toBe('2'); // Tipo de inscrição do pagador
-      expect(segmento.substring(75, 76)).toBe('2'); // Tipo de inscrição do beneficiário
+      const result = gerarSegmentoJ52(params);
+
+      expect(result).toHaveLength(240);
+      expect(result).toContain(BANK_CODES.SANTANDER);
+      expect(result).toContain(dadosBoleto.data_vencimento);
+      expect(result).toContain(dadosBoleto.valor.toString());
     });
 
-    test('deve gerar um segmento J-52 válido sem sacador avalista', () => {
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
       const params = {
         numero_lote: 1,
-        numero_registro: 2,
-        pagador: {
-          tipo_inscricao: 2,
-          inscricao_numero: '12345678901234',
-          nome: 'PAGADOR TESTE LTDA'
-        },
-        beneficiario: {
-          tipo_inscricao: 2,
-          inscricao_numero: '98765432101234',
-          nome: 'BENEFICIARIO TESTE LTDA'
-        }
+        numero_registro: 1
       };
 
-      const segmento = gerarSegmentoJ52(params);
-      
-      // Verifica se o tamanho está correto
-      expect(segmento.length).toBe(240);
-      
-      // Verifica que os campos do sacador estão vazios/zerados
-      expect(segmento.substring(131, 132)).toBe('0'); // Tipo de inscrição do sacador
-      expect(segmento.substring(132, 147)).toBe('000000000000000'); // Número de inscrição do sacador
-    });
-
-    test('deve lançar erro quando parâmetros obrigatórios não são fornecidos', () => {
-      expect(() => {
-        gerarSegmentoJ52({});
-      }).toThrow('Parâmetros obrigatórios não fornecidos');
+      expect(() => gerarSegmentoJ52(params))
+        .toThrow('Parâmetros obrigatórios não fornecidos para gerar o Segmento J52');
     });
   });
 

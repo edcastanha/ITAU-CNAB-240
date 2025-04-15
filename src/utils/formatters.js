@@ -97,9 +97,120 @@ function formatValue(value, length, decimals = 2) {
   return String(intValue).padStart(length, '0').substring(0, length);
 }
 
+/**
+ * Formata uma data para o padrão CNAB (DDMMAAAA)
+ * @param {Date} data - Data a ser formatada
+ * @returns {string} Data formatada
+ */
+const formatarData = (data) => {
+    if (!(data instanceof Date)) {
+        throw new Error('Data inválida');
+    }
+    return data.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    }).replace(/\//g, '');
+};
+
+/**
+ * Formata um valor monetário para o padrão CNAB (15 dígitos, 2 decimais)
+ * @param {number} valor - Valor a ser formatado
+ * @returns {string} Valor formatado
+ */
+const formatarValor = (valor) => {
+    if (typeof valor !== 'number') {
+        throw new Error('Valor inválido');
+    }
+    return valor.toFixed(2).replace('.', '').padStart(15, '0');
+};
+
+/**
+ * Formata um número para o padrão CNAB (com zeros à esquerda)
+ * @param {number|string} numero - Número a ser formatado
+ * @param {number} tamanho - Tamanho total do campo
+ * @returns {string} Número formatado
+ */
+const formatarNumero = (numero, tamanho) => {
+    if (!numero && numero !== 0) {
+        throw new Error('Número inválido');
+    }
+    return String(numero).padStart(tamanho, '0');
+};
+
+/**
+ * Formata um texto para o padrão CNAB (com espaços à direita)
+ * @param {string} texto - Texto a ser formatado
+ * @param {number} tamanho - Tamanho total do campo
+ * @returns {string} Texto formatado
+ */
+const formatarTexto = (texto, tamanho) => {
+    if (typeof texto !== 'string') {
+        throw new Error('Texto inválido');
+    }
+    return texto.padEnd(tamanho, ' ');
+};
+
+/**
+ * Formata um CPF/CNPJ para o padrão CNAB
+ * @param {string} documento - CPF ou CNPJ
+ * @returns {string} Documento formatado
+ */
+const formatarDocumento = (documento) => {
+    if (!documento) {
+        throw new Error('Documento inválido');
+    }
+    return documento.replace(/[^\d]/g, '').padStart(14, '0');
+};
+
+/**
+ * Formata um código de banco para o padrão CNAB
+ * @param {string|number} codigo - Código do banco
+ * @returns {string} Código formatado
+ */
+const formatarCodigoBanco = (codigo) => {
+    if (!codigo) {
+        throw new Error('Código do banco inválido');
+    }
+    return String(codigo).padStart(3, '0');
+};
+
+/**
+ * Formata uma agência para o padrão CNAB
+ * @param {string|number} agencia - Número da agência
+ * @returns {string} Agência formatada
+ */
+const formatarAgencia = (agencia) => {
+    if (!agencia) {
+        throw new Error('Agência inválida');
+    }
+    return String(agencia).padStart(5, '0');
+};
+
+/**
+ * Formata uma conta para o padrão CNAB
+ * @param {string|number} conta - Número da conta
+ * @param {string} digito - Dígito verificador
+ * @returns {string} Conta formatada
+ */
+const formatarConta = (conta, digito) => {
+    if (!conta) {
+        throw new Error('Conta inválida');
+    }
+    return String(conta).padStart(12, '0') + (digito || ' ');
+};
+
 module.exports = {
   formatNumeric,
   formatAlpha,
   formatDate,
-  formatValue
+  formatValue,
+  formatarData,
+  formatarValor,
+  formatarNumero,
+  formatarTexto,
+  formatarDocumento,
+  formatarCodigoBanco,
+  formatarAgencia,
+  formatarConta
 };

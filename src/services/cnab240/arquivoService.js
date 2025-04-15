@@ -17,107 +17,65 @@ const {
 } = require('../../config/constants');
 
 /**
- * Gera o registro Header de Arquivo (Registro 0)
- * @param {Object} params - Parâmetros para geração do header
- * @param {Object} params.empresa - Dados da empresa
- * @param {string} params.empresa.tipo_inscricao - Tipo de inscrição (1=CPF, 2=CNPJ)
- * @param {string} params.empresa.inscricao_numero - Número de inscrição (CPF/CNPJ)
- * @param {string} params.empresa.agencia - Número da agência
- * @param {string} params.empresa.conta - Número da conta
- * @param {string} params.empresa.dac - Dígito verificador da conta
- * @param {string} params.empresa.nome - Nome da empresa
- * @param {Date|string} [params.data_geracao] - Data de geração do arquivo (opcional, default: data atual)
- * @param {string} [params.hora_geracao] - Hora de geração do arquivo (opcional, default: hora atual)
- * @returns {string} - Linha formatada do Header de Arquivo
+ * Gera o header do arquivo CNAB240 para o banco Santander
+ * @param {Object} empresa - Dados da empresa
+ * @param {string} empresa.nome - Nome da empresa
+ * @param {string} empresa.tipo_inscricao - Tipo de inscrição (1=CPF, 2=CNPJ)
+ * @param {string} empresa.numero_inscricao - Número de inscrição (CPF/CNPJ)
+ * @param {string} empresa.codigo_convenio - Código do convênio no banco
+ * @param {string} empresa.agencia - Número da agência
+ * @param {string} empresa.conta - Número da conta
+ * @param {string} empresa.dac - Dígito verificador da conta
+ * @returns {string} - Linha do header do arquivo
  */
-function gerarHeaderArquivo(params) {
-  const { empresa } = params;
-  
-  // Validações básicas
-  if (!empresa) {
-    throw new Error('Dados da empresa são obrigatórios para gerar o Header de Arquivo');
+function gerarHeaderArquivo(empresa) {
+  try {
+    // Validações básicas
+    if (!empresa.nome || !empresa.tipo_inscricao || !empresa.numero_inscricao || 
+        !empresa.codigo_convenio || !empresa.agencia || !empresa.conta || !empresa.dac) {
+      throw new Error('Dados da empresa incompletos para gerar o header do arquivo');
+    }
+
+    const dataGeracao = new Date();
+    const horaGeracao = new Date();
+    const nomeEmpresa = empresa.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+    return [
+      '033', // 1-3 - Código do Banco (Santander = 033)
+      '0000', // 4-7 - Lote de Serviço
+      '0', // 8-8 - Tipo de Registro
+      ' '.repeat(9), // 9-17 - Uso Exclusivo FEBRABAN/CNAB
+      String(empresa.tipo_inscricao).padStart(1, '0'), // 18-18 - Tipo de Inscrição
+      String(empresa.numero_inscricao).padStart(14, '0'), // 19-32 - Número de Inscrição
+      String(empresa.codigo_convenio).padStart(20, ' '), // 33-52 - Código do Convênio no Banco
+      String(empresa.agencia).padStart(5, '0'), // 53-57 - Agência Mantenedora da Conta
+      ' ', // 58-58 - Dígito Verificador da Agência
+      String(empresa.conta).padStart(12, '0'), // 59-70 - Número da Conta
+      ' ', // 71-71 - Dígito Verificador da Conta
+      String(empresa.dac).padStart(1, '0'), // 72-72 - Dígito Verificador da Ag/Conta
+      nomeEmpresa.padEnd(30, ' '), // 73-102 - Nome da Empresa
+      'BANCO SANTANDER'.padEnd(30, ' '), // 103-132 - Nome do Banco
+      ' '.repeat(10), // 133-142 - Uso Exclusivo FEBRABAN/CNAB
+      '1', // 143-143 - Código Remessa/Retorno (1=Remessa)
+      dataGeracao.toISOString().slice(0, 10).replace(/-/g, ''), // 144-151 - Data de Geração
+      String(horaGeracao.getHours()).padStart(2, '0') + 
+      String(horaGeracao.getMinutes()).padStart(2, '0') + 
+      String(horaGeracao.getSeconds()).padStart(2, '0'), // 152-157 - Hora de Geração
+      '000001', // 158-163 - Número Sequencial do Arquivo
+      '040', // 164-166 - Versão do Layout do Arquivo
+      '01600', // 167-171 - Densidade de Gravação
+      ' '.repeat(20), // 172-191 - Uso Reservado do Banco
+      'CSP'.padEnd(20, ' '), // 192-211 - Uso Reservado da Empresa
+      ' '.repeat(29), // 212-240 - Uso Exclusivo FEBRABAN/CNAB
+    ].join('');
+
+  } catch (error) {
+    throw new Error(`Erro ao gerar header do arquivo: ${error.message}`);
   }
-  
-  // Data e hora de geração (default: data/hora atual)
-  const dataAtual = new Date();
-  const dataGeracao = params.data_geracao || dataAtual;
-  const horaGeracao = params.hora_geracao || 
-    `${String(dataAtual.getHours()).padStart(2, '0')}${String(dataAtual.getMinutes()).padStart(2, '0')}${String(dataAtual.getSeconds()).padStart(2, '0')}`;
-  
-  // Montagem do registro Header de Arquivo
-  let header = '';
-  
-  // Código do Banco (posição: 1-3)
-  header += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7) - Para Header de Arquivo, sempre '0000'
-  header += formatNumeric(0, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Header de Arquivo, sempre '0'
-  header += RECORD_TYPES.HEADER_ARQUIVO;
-  
-  // Brancos (posição: 9-14)
-  header += formatAlpha('', 6);
-  
-  // Layout do Arquivo (posição: 15-17)
-  header += formatNumeric(LAYOUT_VERSIONS.ARQUIVO, 3);
-  
-  // Tipo de Inscrição da Empresa (posição: 18-18)
-  header += formatNumeric(empresa.tipo_inscricao, 1);
-  
-  // Número de Inscrição da Empresa (posição: 19-32)
-  header += formatNumeric(empresa.inscricao_numero, 14);
-  
-  // Brancos (posição: 33-52)
-  header += formatAlpha('', 20);
-  
-  // Agência (posição: 53-57)
-  header += formatNumeric(empresa.agencia, 5);
-  
-  // Brancos (posição: 58-58)
-  header += formatAlpha('', 1);
-  
-  // Conta (posição: 59-70)
-  header += formatNumeric(empresa.conta, 12);
-  
-  // Brancos (posição: 71-71)
-  header += formatAlpha('', 1);
-  
-  // DAC (posição: 72-72)
-  header += formatNumeric(empresa.dac, 1);
-  
-  // Nome da Empresa (posição: 73-102)
-  header += formatAlpha(empresa.nome, 30);
-  
-  // Nome do Banco (posição: 103-132)
-  header += formatAlpha('BANCO ITAU SA', 30);
-  
-  // Brancos (posição: 133-142)
-  header += formatAlpha('', 10);
-  
-  // Código Remessa/Retorno (posição: 143-143) - '1' para Remessa
-  header += formatNumeric(1, 1);
-  
-  // Data de Geração (posição: 144-151)
-  header += formatDate(dataGeracao);
-  
-  // Hora de Geração (posição: 152-157)
-  header += formatNumeric(horaGeracao, 6);
-  
-  // Zeros (posição: 158-166)
-  header += formatNumeric(0, 9);
-  
-  // Densidade de Gravação (posição: 167-171)
-  header += formatNumeric(0, 5);
-  
-  // Brancos (posição: 172-240)
-  header += formatAlpha('', 69);
-  
-  return header;
 }
 
 /**
- * Gera o registro Trailer de Arquivo (Registro 9)
+ * Gera o registro Trailer de Arquivo (Registro 9) para o banco Santander
  * @param {Object} params - Parâmetros para geração do trailer
  * @param {number} params.quantidade_lotes - Quantidade de lotes no arquivo
  * @param {number} params.quantidade_registros - Quantidade total de registros no arquivo (incluindo header e trailer)
@@ -131,34 +89,15 @@ function gerarTrailerArquivo(params) {
     throw new Error('Quantidade de lotes e registros são obrigatórios para gerar o Trailer de Arquivo');
   }
   
-  // Montagem do registro Trailer de Arquivo
-  let trailer = '';
-  
-  // Código do Banco (posição: 1-3)
-  trailer += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7) - Para Trailer de Arquivo, sempre '9999'
-  trailer += formatNumeric(9999, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Trailer de Arquivo, sempre '9'
-  trailer += RECORD_TYPES.TRAILER_ARQUIVO;
-  
-  // Brancos (posição: 9-17)
-  trailer += formatAlpha('', 9);
-  
-  // Quantidade de Lotes (posição: 18-23)
-  trailer += formatNumeric(quantidade_lotes, 6);
-  
-  // Quantidade de Registros (posição: 24-29)
-  trailer += formatNumeric(quantidade_registros, 6);
-  
-  // Zeros (posição: 30-35)
-  trailer += formatNumeric(0, 6);
-  
-  // Brancos (posição: 36-240)
-  trailer += formatAlpha('', 205);
-  
-  return trailer;
+  return [
+    '033', // 1-3 - Código do Banco (Santander = 033)
+    '9999', // 4-7 - Lote de Serviço
+    '9', // 8-8 - Tipo de Registro
+    ' '.repeat(9), // 9-17 - Uso Exclusivo FEBRABAN/CNAB
+    String(quantidade_lotes).padStart(6, '0'), // 18-23 - Quantidade de lotes do arquivo
+    String(quantidade_registros).padStart(6, '0'), // 24-29 - Quantidade de registros do arquivo
+    ' '.repeat(211), // 30-240 - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
 }
 
 module.exports = {

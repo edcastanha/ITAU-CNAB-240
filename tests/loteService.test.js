@@ -2,119 +2,128 @@
  * Testes unitários para o serviço de geração de Header e Trailer de Lote CNAB 240
  */
 
-const { 
-  gerarHeaderLote, 
+const {
+  gerarHeaderLote,
   gerarTrailerLote,
   processarLoteSalarios
-} = require('../../src/services/cnab240/cnabService');
+} = require('../../src/services/cnab240/loteService');
 
 const { 
   INSCRIPTION_TYPES,
   SERVICE_TYPES,
-  PAYMENT_FORMS
+  PAYMENT_FORMS,
+  BANK_CODES,
+  RECORD_TYPES
 } = require('../../src/config/constants');
 
 describe('Lote Service - CNAB 240', () => {
+  const dadosEmpresa = {
+    tipo_inscricao: '2',
+    inscricao_numero: '12345678901234',
+    codigo_convenio: '123456',
+    agencia: '1234',
+    conta: '12345678',
+    dac: '9',
+    nome: 'EMPRESA TESTE',
+    endereco: {
+      logradouro: 'RUA TESTE',
+      numero: '123',
+      complemento: 'SALA 1',
+      cidade: 'SAO PAULO',
+      cep: '12345678',
+      estado: 'SP'
+    }
+  };
+
   describe('gerarHeaderLote', () => {
-    test('deve gerar um header de lote válido com 240 caracteres para pagamento de fornecedores', () => {
-      const params = {
+    it('deve gerar header de lote corretamente', () => {
+      const header = gerarHeaderLote({
+        empresa: dadosEmpresa,
         numero_lote: 1,
-        tipo_servico: '20', // Fornecedores
-        forma_pagamento: '01', // Crédito em Conta Corrente
-        empresa: {
-          tipo_inscricao: 2,
-          inscricao_numero: '12345678901234',
-          agencia: '1234',
-          conta: '123456789012',
-          dac: '1',
-          nome: 'EMPRESA TESTE LTDA'
-        },
-        identificacao_lancamento: 'FORN',
-        finalidade_lote: 'PAGAMENTO A FORNECEDORES',
-        endereco: {
-          logradouro: 'RUA TESTE',
-          numero: 123,
-          complemento: 'SALA 456',
-          cidade: 'SAO PAULO',
-          cep: '01234567',
-          estado: 'SP'
-        }
-      };
+        tipo_servico: SERVICE_TYPES.PAGAMENTO_SALARIOS,
+        forma_pagamento: PAYMENT_FORMS.CREDITO_CONTA
+      });
 
-      const header = gerarHeaderLote(params);
-      
-      // Verifica se o tamanho está correto
+      expect(header).toBeDefined();
       expect(header.length).toBe(240);
-      
-      // Verifica alguns campos específicos
-      expect(header.substring(0, 3)).toBe('341'); // Código do banco
-      expect(header.substring(3, 7)).toBe('0001'); // Código do lote
-      expect(header.substring(7, 8)).toBe('1'); // Tipo de registro
-      expect(header.substring(8, 9)).toBe('C'); // Tipo de operação
-      expect(header.substring(9, 11)).toBe('20'); // Tipo de serviço
-      expect(header.substring(11, 13)).toBe('01'); // Forma de pagamento
-      expect(header.substring(32, 36)).toBe('FORN'); // Identificação do lançamento
+      expect(header.substring(0, 3)).toBe(BANK_CODES.SANTANDER);
+      expect(header.substring(3, 7)).toBe('0001');
+      expect(header.substring(7, 8)).toBe('1');
+      expect(header.substring(8, 9)).toBe('C');
+      expect(header.substring(9, 11)).toBe(SERVICE_TYPES.PAGAMENTO_SALARIOS);
+      expect(header.substring(11, 13)).toBe(PAYMENT_FORMS.CREDITO_CONTA);
+      expect(header.substring(13, 16)).toBe('045');
+      expect(header.substring(17, 18)).toBe(' ');
+      expect(header.substring(17, 18)).toBe(' ');
+      expect(header.substring(18, 19)).toBe(dadosEmpresa.tipo_inscricao);
+      expect(header.substring(18, 32)).toBe(dadosEmpresa.inscricao_numero.padStart(14, '0'));
+      expect(header.substring(72, 102).trim()).toBe(dadosEmpresa.nome);
     });
 
-    test('deve gerar um header de lote válido para pagamento de salários', () => {
-      const params = {
-        numero_lote: 2,
-        tipo_servico: '30', // Salários
-        forma_pagamento: '01', // Crédito em Conta Corrente
-        empresa: {
-          tipo_inscricao: 2,
-          inscricao_numero: '12345678901234',
-          agencia: '1234',
-          conta: '123456789012',
-          dac: '1',
-          nome: 'EMPRESA TESTE LTDA'
-        },
-        identificacao_lancamento: 'SALA',
-        finalidade_lote: 'PAGAMENTO DE SALARIOS'
-      };
-
-      const header = gerarHeaderLote(params);
-      
-      // Verifica se o tamanho está correto
-      expect(header.length).toBe(240);
-      
-      // Verifica alguns campos específicos
-      expect(header.substring(9, 11)).toBe('30'); // Tipo de serviço (Salários)
-      expect(header.substring(32, 36)).toBe('SALA'); // Identificação do lançamento
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
+      expect(() => gerarHeaderLote({})).toThrow('Parâmetros obrigatórios não fornecidos');
+      expect(() => gerarHeaderLote({ empresa: dadosEmpresa })).toThrow('Parâmetros obrigatórios não fornecidos');
+      expect(() => gerarHeaderLote({ 
+        empresa: dadosEmpresa,
+        numero_lote: 1
+      })).toThrow('Parâmetros obrigatórios não fornecidos');
     });
 
-    test('deve lançar erro quando parâmetros obrigatórios não são fornecidos', () => {
-      expect(() => {
-        gerarHeaderLote({});
-      }).toThrow('Parâmetros obrigatórios não fornecidos');
+    it('deve formatar campos corretamente', () => {
+      const header = gerarHeaderLote({
+        empresa: dadosEmpresa,
+        numero_lote: 1,
+        tipo_servico: SERVICE_TYPES.PAGAMENTO_SALARIOS,
+        forma_pagamento: PAYMENT_FORMS.CREDITO_CONTA
+      });
+
+      // Verifica formatação de campos numéricos
+      expect(header.substring(3, 7)).toBe('0001');
+      expect(header.substring(18, 32)).toBe('12345678901234');
+      expect(header.substring(52, 57)).toBe('01234');
+
+      // Verifica formatação de campos alfanuméricos
+      expect(header.substring(72, 102).trim()).toBe('EMPRESA TESTE');
+      expect(header.substring(172, 202).trim()).toBe('RUA TESTE');
+      expect(header.substring(202, 207)).toBe('00123');
     });
   });
 
   describe('gerarTrailerLote', () => {
-    test('deve gerar um trailer de lote válido com 240 caracteres', () => {
-      const params = {
+    it('deve gerar trailer de lote corretamente', () => {
+      const trailer = gerarTrailerLote({
         numero_lote: 1,
-        quantidade_registros: 5,
-        somatoria_valores: 1500.75
-      };
+        quantidade_registros: 10,
+        somatoria_valores: 1000.50
+      });
 
-      const trailer = gerarTrailerLote(params);
-      
-      // Verifica se o tamanho está correto
+      expect(trailer).toBeDefined();
       expect(trailer.length).toBe(240);
-      
-      // Verifica alguns campos específicos
-      expect(trailer.substring(0, 3)).toBe('341'); // Código do banco
-      expect(trailer.substring(3, 7)).toBe('0001'); // Código do lote
-      expect(trailer.substring(7, 8)).toBe('5'); // Tipo de registro
-      expect(trailer.substring(17, 23)).toBe('000005'); // Quantidade de registros
-      expect(trailer.substring(23, 41)).toBe('000000000000150075'); // Somatória dos valores
+      expect(trailer.substring(0, 3)).toBe(BANK_CODES.SANTANDER);
+      expect(trailer.substring(3, 7)).toBe('0001');
+      expect(trailer.substring(7, 8)).toBe('5');
+      expect(trailer.substring(17, 23)).toBe('000012');
+      expect(trailer.substring(23, 41)).toBe('000000000000100050');
     });
 
-    test('deve lançar erro quando parâmetros obrigatórios não são fornecidos', () => {
-      expect(() => {
-        gerarTrailerLote({});
-      }).toThrow('Parâmetros obrigatórios não fornecidos');
+    it('deve lançar erro se parâmetros obrigatórios não forem fornecidos', () => {
+      expect(() => gerarTrailerLote({})).toThrow('Parâmetros obrigatórios não fornecidos');
+      expect(() => gerarTrailerLote({ numero_lote: 1 })).toThrow('Parâmetros obrigatórios não fornecidos');
+      expect(() => gerarTrailerLote({ 
+        numero_lote: 1,
+        quantidade_registros: 10
+      })).toThrow('Parâmetros obrigatórios não fornecidos');
+    });
+
+    it('deve formatar valores corretamente', () => {
+      const trailer = gerarTrailerLote({
+        numero_lote: 1,
+        quantidade_registros: 10,
+        somatoria_valores: 1234.56
+      });
+
+      expect(trailer.substring(17, 23)).toBe('000012');
+      expect(trailer.substring(23, 41)).toBe('000000000000123456');
     });
   });
 

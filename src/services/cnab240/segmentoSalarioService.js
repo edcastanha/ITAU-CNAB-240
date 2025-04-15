@@ -12,7 +12,8 @@ const {
 
 const { 
   BANK_CODES, 
-  RECORD_TYPES
+  RECORD_TYPES,
+  INSCRIPTION_TYPES
 } = require('../../config/constants');
 
 /**
@@ -152,7 +153,291 @@ function gerarSegmentoD(params) {
   return segmento;
 }
 
+/**
+ * Gera o registro Segmento P (Registro 3) para pagamentos de salários
+ * @param {Object} params - Parâmetros para geração do segmento P
+ * @param {number} params.numero_lote - Número sequencial do lote
+ * @param {number} params.numero_registro - Número sequencial do registro no lote
+ * @param {Object} params.funcionario - Dados do funcionário
+ * @param {number} params.valor - Valor do pagamento
+ * @param {Date|string} params.data_pagamento - Data de pagamento
+ * @param {string} params.codigo_banco - Código do banco (opcional, padrão '033')
+ * @returns {string} - Linha formatada do Segmento P
+ */
+function gerarSegmentoP(params) {
+  const { 
+    numero_lote, 
+    numero_registro, 
+    funcionario,
+    valor,
+    data_pagamento,
+    codigo_banco = '033'
+  } = params;
+  
+  // Validações básicas
+  if (!numero_lote || !numero_registro || !funcionario || !valor || !data_pagamento) {
+    throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento P');
+  }
+  
+  // Montagem do registro Segmento P
+  let segmento = '';
+  
+  // Código do Banco (posição: 1-3)
+  segmento += formatNumeric(codigo_banco, 3);
+  
+  // Código do Lote (posição: 4-7)
+  segmento += formatNumeric(numero_lote, 4);
+  
+  // Tipo de Registro (posição: 8-8) - Para Segmento P, sempre '3'
+  segmento += RECORD_TYPES.DETALHE;
+  
+  // Número do Registro (posição: 9-13)
+  segmento += formatNumeric(numero_registro, 5);
+  
+  // Código do Segmento (posição: 14-14) - Para Segmento P, sempre 'P'
+  segmento += 'P';
+  
+  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
+  segmento += formatNumeric(0, 1);
+  
+  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
+  segmento += formatNumeric('00', 2);
+  
+  // Código do Banco Favorecido (posição: 18-20)
+  segmento += formatNumeric(funcionario.banco.codigo || codigo_banco, 3);
+  
+  // Código da Agência Favorecido (posição: 21-25)
+  segmento += formatNumeric(funcionario.banco.agencia, 5);
+  
+  // Dígito da Agência Favorecido (posição: 26-26)
+  segmento += formatAlpha(funcionario.banco.agencia_dv || ' ', 1);
+  
+  // Número da Conta Favorecido (posição: 27-38)
+  segmento += formatNumeric(funcionario.banco.conta, 12);
+  
+  // Dígito da Conta Favorecido (posição: 39-39)
+  segmento += formatAlpha(funcionario.banco.conta_dv || ' ', 1);
+  
+  // Dígito da Agência/Conta Favorecido (posição: 40-40)
+  segmento += formatAlpha(funcionario.banco.agencia_conta_dv || ' ', 1);
+  
+  // Nome do Favorecido (posição: 41-70)
+  segmento += formatAlpha(funcionario.nome, 30);
+  
+  // Seu Número (posição: 71-90)
+  segmento += formatAlpha(funcionario.matricula || '', 20);
+  
+  // Data do Pagamento (posição: 91-98)
+  segmento += formatDate(data_pagamento);
+  
+  // Tipo da Moeda (posição: 99-101)
+  segmento += 'BRL';
+  
+  // Quantidade de Moeda (posição: 102-116)
+  segmento += formatNumeric('0', 15);
+  
+  // Valor do Pagamento (posição: 117-131)
+  segmento += formatValue(valor, 15, 2);
+  
+  // Nosso Número (posição: 132-151)
+  segmento += formatAlpha('', 20);
+  
+  // Data Real da Efetivação do Pagamento (posição: 152-159)
+  segmento += formatDate(data_pagamento);
+  
+  // Valor Real da Efetivação do Pagamento (posição: 160-174)
+  segmento += formatValue(valor, 15, 2);
+  
+  // Outras Informações (posição: 175-230)
+  segmento += formatAlpha('', 56);
+  
+  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
+  segmento += formatAlpha('', 10);
+  
+  return segmento;
+}
+
+/**
+ * Gera o registro Segmento Q (Registro 3) para informações do favorecido
+ * @param {Object} params - Parâmetros para geração do segmento Q
+ * @param {number} params.numero_lote - Número sequencial do lote
+ * @param {number} params.numero_registro - Número sequencial do registro no lote
+ * @param {Object} params.funcionario - Dados do funcionário
+ * @param {string} params.codigo_banco - Código do banco (opcional, padrão '033')
+ * @returns {string} - Linha formatada do Segmento Q
+ */
+function gerarSegmentoQ(params) {
+  const { 
+    numero_lote, 
+    numero_registro, 
+    funcionario,
+    codigo_banco = '033'
+  } = params;
+  
+  // Validações básicas
+  if (!numero_lote || !numero_registro || !funcionario) {
+    throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento Q');
+  }
+  
+  // Montagem do registro Segmento Q
+  let segmento = '';
+  
+  // Código do Banco (posição: 1-3)
+  segmento += formatNumeric(codigo_banco, 3);
+  
+  // Código do Lote (posição: 4-7)
+  segmento += formatNumeric(numero_lote, 4);
+  
+  // Tipo de Registro (posição: 8-8) - Para Segmento Q, sempre '3'
+  segmento += RECORD_TYPES.DETALHE;
+  
+  // Número do Registro (posição: 9-13)
+  segmento += formatNumeric(numero_registro, 5);
+  
+  // Código do Segmento (posição: 14-14) - Para Segmento Q, sempre 'Q'
+  segmento += 'Q';
+  
+  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
+  segmento += formatNumeric(0, 1);
+  
+  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
+  segmento += formatNumeric('00', 2);
+  
+  // Tipo de Inscrição do Favorecido (posição: 18-18)
+  segmento += formatNumeric(funcionario.tipo_inscricao || INSCRIPTION_TYPES.CPF, 1);
+  
+  // Número de Inscrição do Favorecido (posição: 19-32)
+  segmento += formatNumeric(funcionario.cpf, 14);
+  
+  // Nome do Favorecido (posição: 33-62)
+  segmento += formatAlpha(funcionario.nome, 30);
+  
+  // Endereço do Favorecido (posição: 63-92)
+  segmento += formatAlpha(funcionario.endereco?.logradouro || '', 30);
+  
+  // Bairro do Favorecido (posição: 93-107)
+  segmento += formatAlpha(funcionario.endereco?.bairro || '', 15);
+  
+  // CEP do Favorecido (posição: 108-115)
+  segmento += formatNumeric(funcionario.endereco?.cep || '', 8);
+  
+  // Cidade do Favorecido (posição: 116-130)
+  segmento += formatAlpha(funcionario.endereco?.cidade || '', 15);
+  
+  // UF do Favorecido (posição: 131-132)
+  segmento += formatAlpha(funcionario.endereco?.uf || '', 2);
+  
+  // Tipo de Inscrição do Sacador/Avalista (posição: 133-133)
+  segmento += formatNumeric(0, 1);
+  
+  // Número de Inscrição do Sacador/Avalista (posição: 134-147)
+  segmento += formatNumeric(0, 14);
+  
+  // Nome do Sacador/Avalista (posição: 148-177)
+  segmento += formatAlpha('', 30);
+  
+  // Código do Banco Correspondente na Compensação (posição: 178-180)
+  segmento += formatNumeric(codigo_banco, 3);
+  
+  // Nosso Número no Banco Correspondente (posição: 181-200)
+  segmento += formatAlpha('', 20);
+  
+  // Ocorrências (posição: 201-240) - Apenas para retorno, na remessa preencher com brancos
+  segmento += formatAlpha('', 40);
+  
+  return segmento;
+}
+
+/**
+ * Gera o registro Segmento R (Registro 3) para informações complementares
+ * @param {Object} params - Parâmetros para geração do segmento R
+ * @param {number} params.numero_lote - Número sequencial do lote
+ * @param {number} params.numero_registro - Número sequencial do registro no lote
+ * @param {Object} params.funcionario - Dados do funcionário
+ * @returns {string} - Linha formatada do Segmento R
+ */
+function gerarSegmentoR(params) {
+  const { 
+    numero_lote, 
+    numero_registro, 
+    funcionario
+  } = params;
+  
+  // Validações básicas
+  if (!numero_lote || !numero_registro || !funcionario) {
+    throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento R');
+  }
+  
+  // Montagem do registro Segmento R
+  let segmento = '';
+  
+  // Código do Banco (posição: 1-3)
+  segmento += formatNumeric(BANK_CODES.ITAU, 3);
+  
+  // Código do Lote (posição: 4-7)
+  segmento += formatNumeric(numero_lote, 4);
+  
+  // Tipo de Registro (posição: 8-8) - Para Segmento R, sempre '3'
+  segmento += RECORD_TYPES.DETALHE;
+  
+  // Número do Registro (posição: 9-13)
+  segmento += formatNumeric(numero_registro, 5);
+  
+  // Código do Segmento (posição: 14-14) - Para Segmento R, sempre 'R'
+  segmento += 'R';
+  
+  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
+  segmento += formatNumeric(0, 1);
+  
+  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
+  segmento += formatNumeric('00', 2);
+  
+  // Código do Desconto 2 (posição: 18-18)
+  segmento += formatNumeric(0, 1);
+  
+  // Data do Desconto 2 (posição: 19-26)
+  segmento += formatNumeric(0, 8);
+  
+  // Valor/Percentual do Desconto 2 (posição: 27-41)
+  segmento += formatNumeric(0, 15);
+  
+  // Código do Desconto 3 (posição: 42-42)
+  segmento += formatNumeric(0, 1);
+  
+  // Data do Desconto 3 (posição: 43-50)
+  segmento += formatNumeric(0, 8);
+  
+  // Valor/Percentual do Desconto 3 (posição: 51-65)
+  segmento += formatNumeric(0, 15);
+  
+  // Código da Multa (posição: 66-66)
+  segmento += formatNumeric(0, 1);
+  
+  // Data da Multa (posição: 67-74)
+  segmento += formatNumeric(0, 8);
+  
+  // Valor/Percentual da Multa (posição: 75-89)
+  segmento += formatNumeric(0, 15);
+  
+  // Informação ao Pagador (posição: 90-99)
+  segmento += formatAlpha('', 10);
+  
+  // Informação 3 (posição: 100-139)
+  segmento += formatAlpha('', 40);
+  
+  // Informação 4 (posição: 140-179)
+  segmento += formatAlpha('', 40);
+  
+  // Ocorrências (posição: 180-240) - Apenas para retorno, na remessa preencher com brancos
+  segmento += formatAlpha('', 61);
+  
+  return segmento;
+}
+
 module.exports = {
   gerarSegmentoC,
-  gerarSegmentoD
+  gerarSegmentoD,
+  gerarSegmentoP,
+  gerarSegmentoQ,
+  gerarSegmentoR
 };
