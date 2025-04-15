@@ -1,295 +1,184 @@
 /**
- * Serviço para geração dos Segmentos N e O para pagamentos de tributos
- * Baseado no Manual Técnico SISPAG CNAB 240 (versão 086)
+ * Serviço para geração de segmentos específicos de pagamento de tributos CNAB240
  */
 
-const { 
-  formatNumeric, 
-  formatAlpha, 
-  formatDate,
-  formatValue 
-} = require('../../utils/formatters');
-
-const { 
-  BANK_CODES, 
-  RECORD_TYPES
-} = require('../../config/constants');
+const { formatarNumero, formatarTexto, formatarDocumento, formatarValor, formatarData } = require('../../utils/formatters');
 
 /**
- * Gera o registro Segmento O (Registro 3) para pagamentos de tributos com código de barras
- * @param {Object} params - Parâmetros para geração do segmento O
- * @param {number} params.numero_lote - Número sequencial do lote
- * @param {number} params.numero_registro - Número sequencial do registro no lote
- * @param {Object} params.tributo - Dados do tributo
- * @param {string} params.tributo.codigo_barras - Código de barras do tributo (44 posições)
- * @param {string} params.tributo.nome_contribuinte - Nome do contribuinte
- * @param {Date|string} params.tributo.data_vencimento - Data de vencimento do tributo
- * @param {Date|string} params.tributo.data_pagamento - Data de pagamento do tributo
- * @param {number} params.tributo.valor - Valor do pagamento
- * @param {string} params.tributo.seu_numero - Seu número (controle da empresa)
- * @returns {string} - Linha formatada do Segmento O
+ * Gera o Segmento N para pagamentos de tributos
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número do registro
+ * @param {Object} pagamento - Dados do pagamento
+ * @returns {string} - Segmento N formatado
  */
-function gerarSegmentoO(params) {
-  const { 
-    numero_lote, 
-    numero_registro, 
-    tributo
-  } = params;
-  
-  // Validações básicas
-  if (!numero_lote || !numero_registro || !tributo || !tributo.codigo_barras) {
-    throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento O');
-  }
-  
-  // Validação do código de barras
-  if (tributo.codigo_barras.length !== 44) {
-    throw new Error('Código de barras deve ter 44 posições');
-  }
-  
-  // Montagem do registro Segmento O
-  let segmento = '';
-  
-  // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7)
-  segmento += formatNumeric(numero_lote, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Segmento O, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
-  
-  // Número do Registro (posição: 9-13)
-  segmento += formatNumeric(numero_registro, 5);
-  
-  // Código do Segmento (posição: 14-14) - Para Segmento O, sempre 'O'
-  segmento += 'O';
-  
-  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
-  segmento += formatNumeric(0, 1);
-  
-  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
-  segmento += formatNumeric('00', 2);
-  
-  // Código de Barras (posição: 18-61) - 44 posições
-  segmento += formatAlpha(tributo.codigo_barras, 44);
-  
-  // Nome do Contribuinte (posição: 62-91)
-  segmento += formatAlpha(tributo.nome_contribuinte || '', 30);
-  
-  // Data de Vencimento (posição: 92-99)
-  segmento += formatDate(tributo.data_vencimento || '');
-  
-  // Data de Pagamento (posição: 100-107)
-  segmento += formatDate(tributo.data_pagamento);
-  
-  // Valor do Pagamento (posição: 108-122)
-  segmento += formatValue(tributo.valor, 15, 2);
-  
-  // Seu Número (posição: 123-142) - Número de controle da empresa
-  segmento += formatAlpha(tributo.seu_numero || '', 20);
-  
-  // Nosso Número (posição: 143-162) - Zeros na remessa
-  segmento += formatNumeric(0, 20);
-  
-  // Brancos (posição: 163-230)
-  segmento += formatAlpha('', 68);
-  
-  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
-  segmento += formatAlpha('', 10);
-  
-  return segmento;
-}
-
-/**
- * Gera o registro Segmento N (Registro 3) para pagamentos de tributos sem código de barras
- * @param {Object} params - Parâmetros para geração do segmento N
- * @param {number} params.numero_lote - Número sequencial do lote
- * @param {number} params.numero_registro - Número sequencial do registro no lote
- * @param {Object} params.tributo - Dados do tributo
- * @param {string} params.tributo.tipo - Tipo de tributo (01=DARF, 02=GPS, 03=DARF Simples, 04=GARE-SP, etc.)
- * @param {string} params.tributo.codigo_receita - Código da receita do tributo
- * @param {string} params.tributo.tipo_inscricao - Tipo de inscrição do contribuinte (1=CPF, 2=CNPJ)
- * @param {string} params.tributo.inscricao_numero - Número de inscrição do contribuinte (CPF/CNPJ)
- * @param {string} params.tributo.periodo_apuracao - Período de apuração (MMAAAA)
- * @param {string} params.tributo.referencia - Número de referência
- * @param {number} params.tributo.valor_principal - Valor principal
- * @param {number} params.tributo.valor_multa - Valor da multa (opcional)
- * @param {number} params.tributo.valor_juros - Valor dos juros/encargos (opcional)
- * @param {Date|string} params.tributo.data_vencimento - Data de vencimento do tributo
- * @param {Date|string} params.tributo.data_pagamento - Data de pagamento do tributo
- * @returns {string} - Linha formatada do Segmento N
- */
-function gerarSegmentoN(params) {
-  const { 
-    numero_lote, 
-    numero_registro, 
-    tributo
-  } = params;
-  
-  // Validações básicas
-  if (!numero_lote || !numero_registro || !tributo || !tributo.tipo) {
+function gerarSegmentoN(numero_lote, numero_registro, pagamento) {
+  if (!numero_lote || !numero_registro || !pagamento) {
     throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento N');
   }
+
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
   
-  // Montagem do registro Segmento N
-  let segmento = '';
+  // Formata o número do registro
+  const registro = formatarNumero(numero_registro, 5);
   
-  // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
+  // Extrai dados do tributo
+  const tributo = pagamento.tributo || pagamento;
+
+  // Formata valores e datas
+  const valor = formatarValor(tributo.valor || 0, 15, 2);
+  const dataPagamento = formatarData(tributo.data_pagamento || new Date());
+  const dataVencimento = formatarData(tributo.data_vencimento || tributo.data_pagamento || new Date());
   
-  // Código do Lote (posição: 4-7)
-  segmento += formatNumeric(numero_lote, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Segmento N, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
-  
-  // Número do Registro (posição: 9-13)
-  segmento += formatNumeric(numero_registro, 5);
-  
-  // Código do Segmento (posição: 14-14) - Para Segmento N, sempre 'N'
-  segmento += 'N';
-  
-  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
-  segmento += formatNumeric(0, 1);
-  
-  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
-  segmento += formatNumeric('00', 2);
-  
-  // Tipo de Tributo (posição: 18-19)
-  segmento += formatNumeric(tributo.tipo, 2);
-  
-  // Código da Receita (posição: 20-23)
-  segmento += formatNumeric(tributo.codigo_receita || 0, 4);
-  
-  // Tipo de Inscrição do Contribuinte (posição: 24-24)
-  segmento += formatNumeric(tributo.tipo_inscricao, 1);
-  
-  // Número de Inscrição do Contribuinte (posição: 25-38)
-  segmento += formatNumeric(tributo.inscricao_numero, 14);
-  
-  // Período de Apuração (posição: 39-44) - MMAAAA
-  segmento += formatAlpha(tributo.periodo_apuracao || '', 6);
-  
-  // Número de Referência (posição: 45-61)
-  segmento += formatAlpha(tributo.referencia || '', 17);
-  
-  // Valor Principal (posição: 62-76)
-  segmento += formatValue(tributo.valor_principal, 15, 2);
-  
-  // Valor da Multa (posição: 77-91)
-  segmento += formatValue(tributo.valor_multa || 0, 15, 2);
-  
-  // Valor dos Juros/Encargos (posição: 92-106)
-  segmento += formatValue(tributo.valor_juros || 0, 15, 2);
-  
-  // Data de Vencimento (posição: 107-114)
-  segmento += formatDate(tributo.data_vencimento);
-  
-  // Data de Pagamento (posição: 115-122)
-  segmento += formatDate(tributo.data_pagamento);
-  
-  // Valor Total (posição: 123-137) - Soma dos valores principal, multa e juros
-  const valorTotal = (tributo.valor_principal || 0) + 
-                    (tributo.valor_multa || 0) + 
-                    (tributo.valor_juros || 0);
-  segmento += formatValue(valorTotal, 15, 2);
-  
-  // Brancos (posição: 138-230)
-  segmento += formatAlpha('', 93);
-  
-  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
-  segmento += formatAlpha('', 10);
-  
-  return segmento;
+  // Constrói o segmento N
+  const segmentoN = [
+    '033',                                       // 01.3N - Código do Banco
+    lote,                                        // 02.3N - Lote de Serviço
+    '3',                                         // 03.3N - Tipo de Registro (3 = Detalhe)
+    registro,                                    // 04.3N - Número Sequencial do Registro no Lote
+    'N',                                         // 05.3N - Código Segmento do Registro Detalhe
+    '0',                                         // 06.3N - Tipo de Movimento (0 = Inclusão)
+    '00',                                        // 07.3N - Código de Instrução para Movimento
+    formatarTexto(tributo.tipo_tributo || '', 2),// 08.3N - Tipo do Tributo
+    formatarTexto(tributo.codigo_receita || '', 4),// 09.3N - Código da Receita
+    formatarTexto(tributo.categoria || '01', 2), // 10.3N - Categoria do Tributo
+    formatarTexto(tributo.competencia || '', 6), // 11.3N - Período de Apuração
+    formatarTexto(tributo.referencia || '', 17), // 12.3N - Número de Referência
+    formatarTexto(tributo.identificador || '', 14),// 13.3N - Número do Documento/Identificador
+    dataVencimento,                              // 14.3N - Data de Vencimento
+    valor,                                       // 15.3N - Valor Principal
+    formatarValor(tributo.valor_multa || 0, 15, 2),// 16.3N - Valor da Multa
+    formatarValor(tributo.valor_juros || 0, 15, 2),// 17.3N - Valor dos Juros/Encargos
+    formatarValor(tributo.valor_desconto || 0, 15, 2),// 18.3N - Valor do Desconto
+    formatarTexto(tributo.contribuinte_tipo || '1', 1),// 19.3N - Tipo de Inscrição do Contribuinte
+    formatarDocumento(tributo.contribuinte_documento || ''),// 20.3N - Número de Inscrição do Contribuinte
+    formatarTexto(tributo.contribuinte_nome || '', 30),// 21.3N - Nome do Contribuinte
+    formatarTexto(tributo.numero_documento || '', 20),// 22.3N - Número do Documento
+    dataPagamento,                               // 23.3N - Data de Pagamento
+    formatarTexto('', 30)                        // 24.3N - Informações Complementares
+  ].join('');
+
+  // Valida o tamanho do segmento N (deve ter 240 posições)
+  if (segmentoN.length !== 240) {
+    throw new Error(`Tamanho inválido do Segmento N: ${segmentoN.length} caracteres (esperado: 240)`);
+  }
+
+  return segmentoN;
 }
 
 /**
- * Gera o registro Segmento W (Registro 3) para informações complementares de GARE-SP
- * @param {Object} params - Parâmetros para geração do segmento W
- * @param {number} params.numero_lote - Número sequencial do lote
- * @param {number} params.numero_registro - Número sequencial do registro no lote
- * @param {Object} params.gare - Dados complementares da GARE-SP
- * @param {string} params.gare.inscricao_estadual - Inscrição estadual do contribuinte
- * @param {string} params.gare.inscricao_divida - Número de inscrição da dívida ativa
- * @param {string} params.gare.periodo_referencia - Período de referência (MMAAAA)
- * @param {number} params.gare.numero_parcela - Número da parcela
- * @param {number} params.gare.valor_receita - Valor da receita
- * @param {number} params.gare.valor_juros - Valor dos juros
- * @param {number} params.gare.valor_multa - Valor da multa
- * @param {number} params.gare.valor_encargos - Valor dos encargos
- * @returns {string} - Linha formatada do Segmento W
+ * Gera o Segmento O para pagamentos de tributos com código de barras
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número do registro
+ * @param {Object} pagamento - Dados do pagamento
+ * @returns {string} - Segmento O formatado
  */
-function gerarSegmentoW(params) {
-  const { 
-    numero_lote, 
-    numero_registro, 
-    gare
-  } = params;
+function gerarSegmentoO(numero_lote, numero_registro, pagamento) {
+  if (!numero_lote || !numero_registro || !pagamento) {
+    throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento O');
+  }
+
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
   
-  // Validações básicas
-  if (!numero_lote || !numero_registro || !gare) {
+  // Formata o número do registro
+  const registro = formatarNumero(numero_registro, 5);
+  
+  // Extrai dados do tributo
+  const tributo = pagamento.tributo || pagamento;
+
+  // Formata valores e datas
+  const valor = formatarValor(tributo.valor || 0, 15, 2);
+  const dataPagamento = formatarData(tributo.data_pagamento || new Date());
+  
+  // Formata o código de barras
+  const codigoBarras = formatarTexto(tributo.codigo_barras || '', 48);
+
+  // Constrói o segmento O
+  const segmentoO = [
+    '033',                                       // 01.3O - Código do Banco
+    lote,                                        // 02.3O - Lote de Serviço
+    '3',                                         // 03.3O - Tipo de Registro (3 = Detalhe)
+    registro,                                    // 04.3O - Número Sequencial do Registro no Lote
+    'O',                                         // 05.3O - Código Segmento do Registro Detalhe
+    '0',                                         // 06.3O - Tipo de Movimento (0 = Inclusão)
+    '00',                                        // 07.3O - Código de Instrução para Movimento
+    codigoBarras,                                // 08.3O - Código de Barras
+    formatarTexto(tributo.nome_beneficiario || '', 30),// 09.3O - Nome do Beneficiário
+    dataPagamento,                               // 10.3O - Data de Vencimento
+    valor,                                       // 11.3O - Valor do Documento
+    formatarValor(tributo.valor_desconto || 0, 15, 2),// 12.3O - Valor do Desconto/Abatimento
+    formatarValor(tributo.valor_acrescimo || 0, 15, 2),// 13.3O - Valor da Multa/Mora
+    dataPagamento,                               // 14.3O - Data do Pagamento
+    valor,                                       // 15.3O - Valor do Pagamento
+    formatarTexto('', 30),                       // 16.3O - Informações Complementares
+    formatarTexto('', 40)                        // 17.3O - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
+
+  // Valida o tamanho do segmento O (deve ter 240 posições)
+  if (segmentoO.length !== 240) {
+    throw new Error(`Tamanho inválido do Segmento O: ${segmentoO.length} caracteres (esperado: 240)`);
+  }
+
+  return segmentoO;
+}
+
+/**
+ * Gera o Segmento W para pagamentos de GARE (SP)
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número do registro
+ * @param {Object} pagamento - Dados do pagamento
+ * @returns {string} - Segmento W formatado
+ */
+function gerarSegmentoW(numero_lote, numero_registro, pagamento) {
+  if (!numero_lote || !numero_registro || !pagamento) {
     throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento W');
   }
+
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
   
-  // Montagem do registro Segmento W
-  let segmento = '';
+  // Formata o número do registro
+  const registro = formatarNumero(numero_registro, 5);
   
-  // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7)
-  segmento += formatNumeric(numero_lote, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Segmento W, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
-  
-  // Número do Registro (posição: 9-13)
-  segmento += formatNumeric(numero_registro, 5);
-  
-  // Código do Segmento (posição: 14-14) - Para Segmento W, sempre 'W'
-  segmento += 'W';
-  
-  // Brancos (posição: 15-17)
-  segmento += formatAlpha('', 3);
-  
-  // Identificador de Tributo (posição: 18-19) - 01=GARE-SP
-  segmento += formatNumeric('01', 2);
-  
-  // Inscrição Estadual (posição: 20-31)
-  segmento += formatNumeric(gare.inscricao_estadual || 0, 12);
-  
-  // Inscrição da Dívida Ativa (posição: 32-44)
-  segmento += formatNumeric(gare.inscricao_divida || 0, 13);
-  
-  // Período de Referência (posição: 45-50) - MMAAAA
-  segmento += formatAlpha(gare.periodo_referencia || '', 6);
-  
-  // Número da Parcela (posição: 51-53)
-  segmento += formatNumeric(gare.numero_parcela || 0, 3);
-  
-  // Valor da Receita (posição: 54-68)
-  segmento += formatValue(gare.valor_receita || 0, 15, 2);
-  
-  // Valor dos Juros (posição: 69-83)
-  segmento += formatValue(gare.valor_juros || 0, 15, 2);
-  
-  // Valor da Multa (posição: 84-98)
-  segmento += formatValue(gare.valor_multa || 0, 15, 2);
-  
-  // Valor dos Encargos (posição: 99-113)
-  segmento += formatValue(gare.valor_encargos || 0, 15, 2);
-  
-  // Brancos (posição: 114-230)
-  segmento += formatAlpha('', 117);
-  
-  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
-  segmento += formatAlpha('', 10);
-  
-  return segmento;
+  // Extrai dados do tributo
+  const gare = pagamento.gare || pagamento;
+
+  // Formata valores e datas
+  const dataReceita = formatarData(gare.data_receita || new Date());
+
+  // Constrói o segmento W
+  const segmentoW = [
+    '033',                                       // 01.3W - Código do Banco
+    lote,                                        // 02.3W - Lote de Serviço
+    '3',                                         // 03.3W - Tipo de Registro (3 = Detalhe)
+    registro,                                    // 04.3W - Número Sequencial do Registro no Lote
+    'W',                                         // 05.3W - Código Segmento do Registro Detalhe
+    '0',                                         // 06.3W - Tipo de Movimento (0 = Inclusão)
+    '00',                                        // 07.3W - Código de Instrução para Movimento
+    formatarTexto(gare.inscricao_estadual || '', 12),// 08.3W - Inscrição Estadual
+    formatarTexto(gare.inscricao_debito || '', 16),// 09.3W - Número da Inscrição do Débito
+    dataReceita,                                 // 10.3W - Data da Receita
+    formatarTexto(gare.tipo_identificacao || '1', 1),// 11.3W - Tipo de Identificação
+    formatarTexto(gare.identificacao || '', 14), // 12.3W - Número da Identificação
+    formatarValor(gare.valor_principal || 0, 15, 2),// 13.3W - Valor da Receita (Principal)
+    formatarValor(gare.valor_juros || 0, 15, 2), // 14.3W - Valor dos Juros
+    formatarValor(gare.valor_multa || 0, 15, 2), // 15.3W - Valor da Multa
+    formatarValor(gare.valor_descontos || 0, 15, 2),// 16.3W - Valor dos Descontos
+    formatarTexto(gare.periodo_referencia || '', 6),// 17.3W - Período de Referência
+    formatarTexto('', 112)                       // 18.3W - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
+
+  // Valida o tamanho do segmento W (deve ter 240 posições)
+  if (segmentoW.length !== 240) {
+    throw new Error(`Tamanho inválido do Segmento W: ${segmentoW.length} caracteres (esperado: 240)`);
+  }
+
+  return segmentoW;
 }
 
 module.exports = {
-  gerarSegmentoO,
   gerarSegmentoN,
+  gerarSegmentoO,
   gerarSegmentoW
 };

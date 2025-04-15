@@ -1,18 +1,39 @@
-@host = http://localhost:3000
+@hostlocal = http://localhost:3000/
 
 
 
-
-GET {{host}}/api/doc HTTP/1.1
-content-type: application/json
-
+GET {{hostlocal}}api/doc HTTP/1.1
+Content-type: application/json
 
 ###
+GET http://localhost:3000/api/status  HTTP/1.1
+content-Type: application/json"
+###
+###
 
-POST {{host}}/api/cnab240/fornecedores HTTP/1.1
-content-type: application/json
+POST {{hostlocal}}api/cnab240/fornecedores HTTP/1.1
+Content-Type: application/json
+
+###
+POST {{hostlocal}}api/cnab240/salarios HTTP/1.1
+content-Type: application/json" 
 
 {
-    "name": "sample",
-    "time": "Wed, 21 Oct 2015 18:27:50 GMT"
+   "empresa":{
+      "tipo_inscricao":"2",
+      "inscricao_numero":"12345678901234",
+      "nome":"EMPRESA TESTE",
+      "agencia":"1234",
+      "conta":"123456",
+      "dac":"7"
+   },
+   "pagamentos":[
+      {
+         "tipo_inscricao":"1",
+         "inscricao_numero":"98765432109",
+         "nome":"FUNCIONARIO TESTE",
+         "valor":3000.00,
+         "data_pagamento":"20240315"
+      }
+   ]
 }

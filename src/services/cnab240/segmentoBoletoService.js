@@ -1,292 +1,166 @@
 /**
- * Serviço para geração dos Segmentos J e J-52 para pagamentos de boletos
- * Baseado no Manual Técnico SISPAG CNAB 240 (versão 086)
+ * Serviço para geração de segmentos específicos de pagamento de boletos CNAB240
  */
 
-const { 
-  formatNumeric, 
-  formatAlpha, 
-  formatDate,
-  formatValue 
-} = require('../../utils/formatters');
-
-const { 
-  BANK_CODES, 
-  RECORD_TYPES,
-  NOTIFICATION_CODES
-} = require('../../config/constants');
+const { formatarNumero, formatarTexto, formatarDocumento, formatarValor, formatarData } = require('../../utils/formatters');
 
 /**
- * Gera o registro Segmento J (Registro 3) para pagamentos de boletos
- * @param {Object} params - Parâmetros para geração do segmento J
- * @param {number} params.numero_lote - Número sequencial do lote
- * @param {number} params.numero_registro - Número sequencial do registro no lote
- * @param {Object} params.boleto - Dados do boleto
- * @param {string} params.boleto.codigo_barras - Código de barras do boleto (44 posições)
- * @param {string} params.boleto.nome_beneficiario - Nome do beneficiário do boleto
- * @param {Date|string} params.boleto.data_vencimento - Data de vencimento do boleto
- * @param {Date|string} params.boleto.data_pagamento - Data de pagamento do boleto
- * @param {number} params.boleto.valor - Valor do pagamento
- * @param {number} params.boleto.valor_desconto - Valor do desconto (opcional)
- * @param {number} params.boleto.valor_acrescimo - Valor do acréscimo (opcional)
- * @param {string} params.boleto.seu_numero - Seu número (controle da empresa)
- * @returns {string} - Linha formatada do Segmento J
+ * Gera o Segmento J para pagamentos de boletos
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número do registro
+ * @param {Object} pagamento - Dados do pagamento
+ * @returns {string} - Segmento J formatado
  */
-function gerarSegmentoJ(params) {
-  const { 
-    numero_lote, 
-    numero_registro, 
-    boleto
-  } = params;
-  
-  // Validações básicas
-  if (!numero_lote || !numero_registro || !boleto || !boleto.codigo_barras) {
+function gerarSegmentoJ(numero_lote, numero_registro, pagamento) {
+  if (!numero_lote || !numero_registro || !pagamento) {
     throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento J');
   }
+
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
   
-  // Validação do código de barras
-  if (boleto.codigo_barras.length !== 44) {
-    throw new Error('Código de barras deve ter 44 posições');
+  // Formata o número do registro
+  const registro = formatarNumero(numero_registro, 5);
+  
+  // Extrai dados do boleto
+  const boleto = pagamento.boleto || pagamento;
+
+  // Formata valores e datas
+  const valor = formatarValor(boleto.valor || 0, 15, 2);
+  const dataPagamento = formatarData(boleto.data_pagamento || new Date());
+  const dataVencimento = formatarData(boleto.data_vencimento || boleto.data_pagamento || new Date());
+  
+  // Formata o código de barras ou linha digitável
+  const codigoBarras = formatarTexto(boleto.codigo_barras || '', 44);
+  
+  // Constrói o segmento J
+  const segmentoJ = [
+    '033',                                     // 01.3J - Código do Banco
+    lote,                                      // 02.3J - Lote de Serviço
+    '3',                                       // 03.3J - Tipo de Registro (3 = Detalhe)
+    registro,                                  // 04.3J - Número Sequencial do Registro no Lote
+    'J',                                       // 05.3J - Código Segmento do Registro Detalhe
+    '0',                                       // 06.3J - Tipo de Movimento (0 = Inclusão)
+    '00',                                      // 07.3J - Código de Instrução para Movimento
+    codigoBarras,                              // 08.3J - Código de Barras
+    formatarTexto(boleto.nome_beneficiario || '', 30), // 09.3J - Nome do Beneficiário
+    dataVencimento,                            // 10.3J - Data de Vencimento
+    valor,                                     // 11.3J - Valor
+    formatarValor(boleto.desconto || 0, 15, 2), // 12.3J - Valor do Desconto/Abatimento
+    formatarValor(boleto.acrescimo || 0, 15, 2), // 13.3J - Valor da Mora/Multa
+    dataPagamento,                             // 14.3J - Data do Pagamento
+    valor,                                     // 15.3J - Valor do Pagamento
+    formatarValor(0, 15, 2),                   // 16.3J - Quantidade de Moeda
+    formatarTexto(boleto.numero_documento || '', 20), // 17.3J - Número do Documento Cliente
+    formatarTexto(boleto.nosso_numero || '', 20), // 18.3J - Número do Documento Banco
+    '09',                                      // 19.3J - Código da Moeda (09 = Real)
+    ' '.repeat(13)                             // 20.3J - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
+
+  // Valida o tamanho do segmento J (deve ter 240 posições)
+  if (segmentoJ.length !== 240) {
+    throw new Error(`Tamanho inválido do Segmento J: ${segmentoJ.length} caracteres (esperado: 240)`);
   }
-  
-  // Montagem do registro Segmento J
-  let segmento = '';
-  
-  // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7)
-  segmento += formatNumeric(numero_lote, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Segmento J, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
-  
-  // Número do Registro (posição: 9-13)
-  segmento += formatNumeric(numero_registro, 5);
-  
-  // Código do Segmento (posição: 14-14) - Para Segmento J, sempre 'J'
-  segmento += 'J';
-  
-  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
-  segmento += formatNumeric(0, 1);
-  
-  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
-  segmento += formatNumeric('00', 2);
-  
-  // Código de Barras (posição: 18-61) - 44 posições
-  segmento += formatAlpha(boleto.codigo_barras, 44);
-  
-  // Nome do Beneficiário (posição: 62-91)
-  segmento += formatAlpha(boleto.nome_beneficiario || '', 30);
-  
-  // Data de Vencimento (posição: 92-99)
-  segmento += formatDate(boleto.data_vencimento || '');
-  
-  // Data de Pagamento (posição: 100-107)
-  segmento += formatDate(boleto.data_pagamento);
-  
-  // Valor do Título (posição: 108-122)
-  segmento += formatValue(boleto.valor, 15, 2);
-  
-  // Valor do Desconto + Abatimento (posição: 123-137)
-  segmento += formatValue(boleto.valor_desconto || 0, 15, 2);
-  
-  // Valor da Mora + Multa (posição: 138-152)
-  segmento += formatValue(boleto.valor_acrescimo || 0, 15, 2);
-  
-  // Código da Moeda (posição: 153-154) - 01=Real
-  segmento += formatNumeric('01', 2);
-  
-  // Código de Ocorrência (posição: 155-155) - Zeros na remessa
-  segmento += formatNumeric(0, 1);
-  
-  // Seu Número (posição: 156-175) - Número de controle da empresa
-  segmento += formatAlpha(boleto.seu_numero || '', 20);
-  
-  // Nosso Número (posição: 176-195) - Zeros na remessa
-  segmento += formatNumeric(0, 20);
-  
-  // Código da Moeda (posição: 196-198) - Brancos na remessa
-  segmento += formatAlpha('', 3);
-  
-  // Brancos (posição: 199-230)
-  segmento += formatAlpha('', 32);
-  
-  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
-  segmento += formatAlpha('', 10);
-  
-  return segmento;
+
+  return segmentoJ;
 }
 
 /**
- * Gera o registro Segmento J-52 (Registro 3) para informações complementares de boletos
- * @param {Object} params - Parâmetros para geração do segmento J-52
- * @param {number} params.numero_lote - Número sequencial do lote
- * @param {number} params.numero_registro - Número sequencial do registro no lote
- * @param {Object} params.pagador - Dados do pagador
- * @param {string} params.pagador.tipo_inscricao - Tipo de inscrição (1=CPF, 2=CNPJ)
- * @param {string} params.pagador.inscricao_numero - Número de inscrição (CPF/CNPJ)
- * @param {string} params.pagador.nome - Nome do pagador
- * @param {Object} params.beneficiario - Dados do beneficiário
- * @param {string} params.beneficiario.tipo_inscricao - Tipo de inscrição (1=CPF, 2=CNPJ)
- * @param {string} params.beneficiario.inscricao_numero - Número de inscrição (CPF/CNPJ)
- * @param {string} params.beneficiario.nome - Nome do beneficiário
- * @param {Object} params.sacador - Dados do sacador avalista (opcional)
- * @param {string} [params.sacador.tipo_inscricao] - Tipo de inscrição (1=CPF, 2=CNPJ)
- * @param {string} [params.sacador.inscricao_numero] - Número de inscrição (CPF/CNPJ)
- * @param {string} [params.sacador.nome] - Nome do sacador avalista
- * @returns {string} - Linha formatada do Segmento J-52
+ * Gera o Segmento J-52 para pagamentos de boletos (informações do sacador/avalista)
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número do registro
+ * @param {Object} pagamento - Dados do pagamento
+ * @returns {string} - Segmento J-52 formatado
  */
-function gerarSegmentoJ52(params) {
-  const { 
-    numero_lote, 
-    numero_registro, 
-    pagador,
-    beneficiario,
-    sacador = {}
-  } = params;
-  
-  // Validações básicas
-  if (!numero_lote || !numero_registro || !pagador || !beneficiario) {
+function gerarSegmentoJ52(numero_lote, numero_registro, pagamento) {
+  if (!numero_lote || !numero_registro || !pagamento) {
     throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento J-52');
   }
+
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
   
-  // Montagem do registro Segmento J-52
-  let segmento = '';
+  // Formata o número do registro
+  const registro = formatarNumero(numero_registro, 5);
   
-  // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7)
-  segmento += formatNumeric(numero_lote, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Segmento J-52, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
-  
-  // Número do Registro (posição: 9-13)
-  segmento += formatNumeric(numero_registro, 5);
-  
-  // Código do Segmento (posição: 14-14) - Para Segmento J-52, sempre 'J'
-  segmento += 'J';
-  
-  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
-  segmento += formatNumeric(0, 1);
-  
-  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
-  segmento += formatNumeric('00', 2);
-  
-  // Identificador do Registro Opcional (posição: 18-19) - Para J-52, sempre '52'
-  segmento += formatNumeric('52', 2);
-  
-  // Pagador
-  // Tipo de Inscrição do Pagador (posição: 20-20)
-  segmento += formatNumeric(pagador.tipo_inscricao, 1);
-  
-  // Número de Inscrição do Pagador (posição: 21-35)
-  segmento += formatNumeric(pagador.inscricao_numero, 15);
-  
-  // Nome do Pagador (posição: 36-75)
-  segmento += formatAlpha(pagador.nome, 40);
-  
-  // Beneficiário
-  // Tipo de Inscrição do Beneficiário (posição: 76-76)
-  segmento += formatNumeric(beneficiario.tipo_inscricao, 1);
-  
-  // Número de Inscrição do Beneficiário (posição: 77-91)
-  segmento += formatNumeric(beneficiario.inscricao_numero, 15);
-  
-  // Nome do Beneficiário (posição: 92-131)
-  segmento += formatAlpha(beneficiario.nome, 40);
-  
-  // Sacador Avalista
-  // Tipo de Inscrição do Sacador (posição: 132-132)
-  segmento += formatNumeric(sacador.tipo_inscricao || 0, 1);
-  
-  // Número de Inscrição do Sacador (posição: 133-147)
-  segmento += formatNumeric(sacador.inscricao_numero || 0, 15);
-  
-  // Nome do Sacador (posição: 148-187)
-  segmento += formatAlpha(sacador.nome || '', 40);
-  
-  // Brancos (posição: 188-230)
-  segmento += formatAlpha('', 43);
-  
-  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
-  segmento += formatAlpha('', 10);
-  
-  return segmento;
+  // Extrai dados do pagador e beneficiário
+  const pagador = pagamento.pagador || {};
+  const beneficiario = pagamento.beneficiario || {};
+
+  // Constrói o segmento J-52
+  const segmentoJ52 = [
+    '033',                                      // 01.3J52 - Código do Banco
+    lote,                                       // 02.3J52 - Lote de Serviço
+    '3',                                        // 03.3J52 - Tipo de Registro (3 = Detalhe)
+    registro,                                   // 04.3J52 - Número Sequencial do Registro no Lote
+    'J',                                        // 05.3J52 - Código Segmento do Registro Detalhe
+    '0',                                        // 06.3J52 - Tipo de Movimento (0 = Inclusão)
+    '00',                                       // 07.3J52 - Código de Instrução para Movimento
+    '52',                                       // 08.3J52 - Código do Registro Opcional
+    pagador.tipo_inscricao || '0',              // 09.3J52 - Tipo de Inscrição do Pagador
+    formatarDocumento(pagador.inscricao_numero || ''), // 10.3J52 - Número de Inscrição do Pagador
+    formatarTexto(pagador.nome || '', 40),      // 11.3J52 - Nome do Pagador
+    beneficiario.tipo_inscricao || '0',         // 12.3J52 - Tipo de Inscrição do Beneficiário
+    formatarDocumento(beneficiario.inscricao_numero || ''), // 13.3J52 - Número de Inscrição do Beneficiário
+    formatarTexto(beneficiario.nome || '', 40), // 14.3J52 - Nome do Beneficiário
+    formatarTexto(beneficiario.tipo_inscricao || '0', 1), // 15.3J52 - Tipo de Inscrição do Sacador Avalista
+    formatarDocumento(beneficiario.inscricao_numero || ''), // 16.3J52 - Número de Inscrição do Sacador Avalista
+    formatarTexto(beneficiario.nome || '', 40), // 17.3J52 - Nome do Sacador Avalista
+    ' '.repeat(53)                              // 18.3J52 - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
+
+  // Valida o tamanho do segmento J-52 (deve ter 240 posições)
+  if (segmentoJ52.length !== 240) {
+    throw new Error(`Tamanho inválido do Segmento J-52: ${segmentoJ52.length} caracteres (esperado: 240)`);
+  }
+
+  return segmentoJ52;
 }
 
 /**
- * Gera o registro Segmento J-52 PIX (Registro 3) para pagamentos via PIX QR Code
- * @param {Object} params - Parâmetros para geração do segmento J-52 PIX
- * @param {number} params.numero_lote - Número sequencial do lote
- * @param {number} params.numero_registro - Número sequencial do registro no lote
- * @param {Object} params.pix - Dados do PIX
- * @param {string} params.pix.tipo_chave - Tipo de chave PIX (1=Telefone, 2=Email, 3=CPF/CNPJ, 4=Chave aleatória)
- * @param {string} params.pix.chave - Chave PIX
- * @param {string} params.pix.tx_id - Identificador da transação PIX (opcional)
- * @param {string} params.pix.info_adicional - Informação adicional (opcional)
- * @returns {string} - Linha formatada do Segmento J-52 PIX
+ * Gera o Segmento J-52 para pagamentos PIX via QR Code
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número do registro
+ * @param {Object} pagamento - Dados do pagamento
+ * @returns {string} - Segmento J-52 PIX formatado
  */
-function gerarSegmentoJ52PIX(params) {
-  const { 
-    numero_lote, 
-    numero_registro, 
-    pix
-  } = params;
-  
-  // Validações básicas
-  if (!numero_lote || !numero_registro || !pix || !pix.chave) {
+function gerarSegmentoJ52PIX(numero_lote, numero_registro, pagamento) {
+  if (!numero_lote || !numero_registro || !pagamento) {
     throw new Error('Parâmetros obrigatórios não fornecidos para gerar o Segmento J-52 PIX');
   }
+
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
   
-  // Montagem do registro Segmento J-52 PIX
-  let segmento = '';
+  // Formata o número do registro
+  const registro = formatarNumero(numero_registro, 5);
   
-  // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
-  
-  // Código do Lote (posição: 4-7)
-  segmento += formatNumeric(numero_lote, 4);
-  
-  // Tipo de Registro (posição: 8-8) - Para Segmento J-52 PIX, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
-  
-  // Número do Registro (posição: 9-13)
-  segmento += formatNumeric(numero_registro, 5);
-  
-  // Código do Segmento (posição: 14-14) - Para Segmento J-52 PIX, sempre 'J'
-  segmento += 'J';
-  
-  // Tipo de Movimento (posição: 15-15) - 0=Inclusão
-  segmento += formatNumeric(0, 1);
-  
-  // Código de Instrução para Movimento (posição: 16-17) - 00=Inclusão
-  segmento += formatNumeric('00', 2);
-  
-  // Identificador do Registro Opcional (posição: 18-19) - Para J-52 PIX, sempre '52'
-  segmento += formatNumeric('52', 2);
-  
-  // Tipo de Chave PIX (posição: 20-20)
-  segmento += formatNumeric(pix.tipo_chave, 1);
-  
-  // Chave PIX (posição: 21-100)
-  segmento += formatAlpha(pix.chave, 80);
-  
-  // TX ID (posição: 101-132)
-  segmento += formatAlpha(pix.tx_id || '', 32);
-  
-  // Informação Adicional (posição: 133-182)
-  segmento += formatAlpha(pix.info_adicional || '', 50);
-  
-  // Brancos (posição: 183-230)
-  segmento += formatAlpha('', 48);
-  
-  // Ocorrências (posição: 231-240) - Apenas para retorno, na remessa preencher com brancos
-  segmento += formatAlpha('', 10);
-  
-  return segmento;
+  // Extrai dados do PIX
+  const pix = pagamento.pix || {};
+
+  // Constrói o segmento J-52 PIX
+  const segmentoJ52PIX = [
+    '033',                                      // 01.3J52 - Código do Banco
+    lote,                                       // 02.3J52 - Lote de Serviço
+    '3',                                        // 03.3J52 - Tipo de Registro (3 = Detalhe)
+    registro,                                   // 04.3J52 - Número Sequencial do Registro no Lote
+    'J',                                        // 05.3J52 - Código Segmento do Registro Detalhe
+    '0',                                        // 06.3J52 - Tipo de Movimento (0 = Inclusão)
+    '00',                                       // 07.3J52 - Código de Instrução para Movimento
+    '52',                                       // 08.3J52 - Código do Registro Opcional
+    '99',                                       // 09.3J52 - Identificador de QR Code PIX
+    formatarTexto(pix.qrcode || '', 99),        // 10.3J52 - String do QR Code PIX
+    formatarTexto(pix.tipo_chave || '', 2),     // 11.3J52 - Tipo de Chave PIX
+    formatarTexto(pix.chave || '', 77),         // 12.3J52 - Chave PIX
+    ' '.repeat(35)                              // 13.3J52 - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
+
+  // Valida o tamanho do segmento J-52 PIX (deve ter 240 posições)
+  if (segmentoJ52PIX.length !== 240) {
+    throw new Error(`Tamanho inválido do Segmento J-52 PIX: ${segmentoJ52PIX.length} caracteres (esperado: 240)`);
+  }
+
+  return segmentoJ52PIX;
 }
 
 module.exports = {

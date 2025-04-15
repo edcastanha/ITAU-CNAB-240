@@ -98,107 +98,183 @@ function formatValue(value, length, decimals = 2) {
 }
 
 /**
- * Formata uma data para o padrão CNAB (DDMMAAAA)
- * @param {Date} data - Data a ser formatada
- * @returns {string} Data formatada
+ * Formata uma data para o padrão DDMMAAAA
+ * @param {Date|string} data - Data a ser formatada
+ * @returns {string} - Data formatada como DDMMAAAA
  */
-const formatarData = (data) => {
-    if (!(data instanceof Date)) {
-        throw new Error('Data inválida');
+function formatarData(data) {
+  if (!data) return '00000000';
+  
+  let dataObj;
+  if (typeof data === 'string') {
+    // Se já estiver no formato DDMMAAAA ou AAAAMMDD, apenas retorna
+    if (/^\d{8}$/.test(data)) {
+      // Se estiver no formato AAAAMMDD, converte para DDMMAAAA
+      if (parseInt(data.substr(0, 4)) > 1900) {
+        return data.substr(6, 2) + data.substr(4, 2) + data.substr(0, 4);
+      }
+      return data;
     }
-    return data.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    }).replace(/\//g, '');
-};
+    // Tenta converter a string em data
+    dataObj = new Date(data);
+  } else if (data instanceof Date) {
+    dataObj = data;
+  } else {
+    return '00000000';
+  }
+  
+  // Verifica se a data é válida
+  if (isNaN(dataObj.getTime())) {
+    return '00000000';
+  }
+  
+  const dia = String(dataObj.getDate()).padStart(2, '0');
+  const mes = String(dataObj.getMonth() + 1).padStart(2, '0');
+  const ano = String(dataObj.getFullYear());
+  
+  return dia + mes + ano;
+}
 
 /**
- * Formata um valor monetário para o padrão CNAB (15 dígitos, 2 decimais)
- * @param {number} valor - Valor a ser formatado
- * @returns {string} Valor formatado
+ * Formata um valor monetário para o padrão CNAB (sem separadores e com casas decimais)
+ * @param {number|string} valor - Valor a ser formatado
+ * @param {number} tamanho - Tamanho total do campo (incluindo decimais)
+ * @param {number} decimais - Quantidade de casas decimais
+ * @returns {string} - Valor formatado
  */
-const formatarValor = (valor) => {
-    if (typeof valor !== 'number') {
-        throw new Error('Valor inválido');
-    }
-    return valor.toFixed(2).replace('.', '').padStart(15, '0');
-};
+function formatarValor(valor, tamanho = 15, decimais = 2) {
+  if (valor === null || valor === undefined) {
+    return '0'.repeat(tamanho);
+  }
+  
+  let valorNum;
+  if (typeof valor === 'string') {
+    // Remove caracteres não numéricos, exceto ponto decimal
+    valorNum = parseFloat(valor.replace(/[^\d.]/g, ''));
+  } else {
+    valorNum = parseFloat(valor);
+  }
+  
+  // Verifica se o valor é um número válido
+  if (isNaN(valorNum)) {
+    return '0'.repeat(tamanho);
+  }
+  
+  // Multiplica pelo fator de casas decimais para remover o ponto
+  const fator = Math.pow(10, decimais);
+  const valorInteiro = Math.round(valorNum * fator);
+  
+  // Formata o valor como string preenchendo com zeros à esquerda
+  return String(valorInteiro).padStart(tamanho, '0');
+}
 
 /**
- * Formata um número para o padrão CNAB (com zeros à esquerda)
+ * Formata um número com zeros à esquerda
  * @param {number|string} numero - Número a ser formatado
  * @param {number} tamanho - Tamanho total do campo
- * @returns {string} Número formatado
+ * @returns {string} - Número formatado com zeros à esquerda
  */
-const formatarNumero = (numero, tamanho) => {
-    if (!numero && numero !== 0) {
-        throw new Error('Número inválido');
-    }
-    return String(numero).padStart(tamanho, '0');
-};
+function formatarNumero(numero, tamanho) {
+  if (numero === null || numero === undefined || numero === '') {
+    return '0'.repeat(tamanho);
+  }
+  
+  // Remove caracteres não numéricos
+  const numeroLimpo = String(numero).replace(/\D/g, '');
+  
+  return numeroLimpo.padStart(tamanho, '0');
+}
 
 /**
- * Formata um texto para o padrão CNAB (com espaços à direita)
+ * Formata um texto com espaços à direita
  * @param {string} texto - Texto a ser formatado
  * @param {number} tamanho - Tamanho total do campo
- * @returns {string} Texto formatado
+ * @returns {string} - Texto formatado com espaços à direita
  */
-const formatarTexto = (texto, tamanho) => {
-    if (typeof texto !== 'string') {
-        throw new Error('Texto inválido');
-    }
-    return texto.padEnd(tamanho, ' ');
-};
+function formatarTexto(texto, tamanho) {
+  if (texto === null || texto === undefined) {
+    return ' '.repeat(tamanho);
+  }
+  
+  // Converte para string e limita o tamanho
+  const textoStr = String(texto).substring(0, tamanho);
+  
+  // Preenche com espaços à direita
+  return textoStr.padEnd(tamanho, ' ');
+}
 
 /**
- * Formata um CPF/CNPJ para o padrão CNAB
- * @param {string} documento - CPF ou CNPJ
- * @returns {string} Documento formatado
+ * Formata um documento (CPF/CNPJ) com zeros à esquerda
+ * @param {string} documento - Documento a ser formatado
+ * @returns {string} - Documento formatado
  */
-const formatarDocumento = (documento) => {
-    if (!documento) {
-        throw new Error('Documento inválido');
-    }
-    return documento.replace(/[^\d]/g, '').padStart(14, '0');
-};
+function formatarDocumento(documento) {
+  if (!documento) return '00000000000000';
+  
+  // Remove caracteres não numéricos
+  const documentoLimpo = String(documento).replace(/\D/g, '');
+  
+  // Preenche com zeros à esquerda (padrão CNPJ com 14 posições)
+  return documentoLimpo.padStart(14, '0');
+}
 
 /**
- * Formata um código de banco para o padrão CNAB
- * @param {string|number} codigo - Código do banco
- * @returns {string} Código formatado
+ * Formata um código de banco com zeros à esquerda
+ * @param {string} codigo - Código do banco a ser formatado
+ * @returns {string} - Código do banco formatado
  */
-const formatarCodigoBanco = (codigo) => {
-    if (!codigo) {
-        throw new Error('Código do banco inválido');
-    }
-    return String(codigo).padStart(3, '0');
-};
+function formatarCodigoBanco(codigo) {
+  if (!codigo) return '000';
+  
+  // Remove caracteres não numéricos
+  const codigoLimpo = String(codigo).replace(/\D/g, '');
+  
+  // Preenche com zeros à esquerda (padrão 3 posições)
+  return codigoLimpo.padStart(3, '0');
+}
 
 /**
- * Formata uma agência para o padrão CNAB
- * @param {string|number} agencia - Número da agência
- * @returns {string} Agência formatada
+ * Formata um número de agência com zeros à esquerda
+ * @param {string} agencia - Número da agência a ser formatado
+ * @returns {string} - Número da agência formatado
  */
-const formatarAgencia = (agencia) => {
-    if (!agencia) {
-        throw new Error('Agência inválida');
-    }
-    return String(agencia).padStart(5, '0');
-};
+function formatarAgencia(agencia) {
+  if (!agencia) return '00000';
+  
+  // Remove caracteres não numéricos
+  const agenciaLimpa = String(agencia).replace(/\D/g, '');
+  
+  // Preenche com zeros à esquerda (padrão 5 posições)
+  return agenciaLimpa.padStart(5, '0');
+}
 
 /**
- * Formata uma conta para o padrão CNAB
- * @param {string|number} conta - Número da conta
- * @param {string} digito - Dígito verificador
- * @returns {string} Conta formatada
+ * Formata um número de conta com zeros à esquerda
+ * @param {string} conta - Número da conta a ser formatado
+ * @param {string} dv - Dígito verificador da conta
+ * @returns {string} - Número da conta formatado
  */
-const formatarConta = (conta, digito) => {
-    if (!conta) {
-        throw new Error('Conta inválida');
-    }
-    return String(conta).padStart(12, '0') + (digito || ' ');
-};
+function formatarConta(conta, dv) {
+  if (!conta) return '0000000000000';
+  
+  // Remove caracteres não numéricos
+  const contaLimpa = String(conta).replace(/\D/g, '');
+  let dvLimpo = '';
+  
+  if (dv) {
+    dvLimpo = String(dv).replace(/\D/g, '');
+  }
+  
+  // Preenche a conta com zeros à esquerda (padrão 12 posições)
+  const contaFormatada = contaLimpa.padStart(12, '0');
+  
+  // Adiciona o dígito verificador se fornecido
+  if (dvLimpo) {
+    return contaFormatada + dvLimpo.padStart(1, '0');
+  }
+  
+  return contaFormatada + '0';
+}
 
 module.exports = {
   formatNumeric,

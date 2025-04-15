@@ -1,110 +1,137 @@
 /**
- * Serviço para geração do Header e Trailer de Lote CNAB 240
- * Baseado no Manual Técnico SISPAG CNAB 240 do Santander (versão 086)
+ * Serviço para geração de headers e trailers de lotes CNAB240
  */
 
-const { 
-  formatNumeric, 
-  formatAlpha, 
-  formatDate 
-} = require('../../utils/formatters');
-
-const { 
-  BANK_CODES, 
-  RECORD_TYPES, 
-  OPERATION_TYPES,
-  SERVICE_TYPES,
-  PAYMENT_FORMS,
-  LAYOUT_VERSIONS 
-} = require('../../config/constants');
+const { formatarNumero, formatarTexto, formatarDocumento, formatarValor } = require('../../utils/formatters');
 
 /**
- * Gera o header do lote para o Santander
- * @param {Object} params - Parâmetros do header do lote
- * @param {Object} params.empresa - Dados da empresa
- * @param {number} params.numero_lote - Número do lote
- * @param {string} params.tipo_servico - Tipo de serviço
- * @param {string} params.forma_pagamento - Forma de pagamento
- * @param {string} params.finalidade_lote - Finalidade do lote (opcional)
- * @returns {string} - Linha do header do lote
+ * Gera o header do lote CNAB240
+ * @param {Object} empresa - Dados da empresa
+ * @param {number} numero_lote - Número do lote
+ * @param {string} tipoPagamento - Tipo de pagamento ('salarios', 'fornecedores', etc.)
+ * @returns {string} - Header do lote formatado
  */
-function gerarHeaderLote(params) {
-  const { empresa, numero_lote, tipo_servico, forma_pagamento, finalidade_lote = '01' } = params;
-
-  if (!empresa || !numero_lote || !tipo_servico || !forma_pagamento) {
-    throw new Error('Parâmetros obrigatórios não fornecidos para o header do lote');
+function gerarHeaderLote(empresa, numero_lote, tipoPagamento) {
+  if (!empresa) {
+    throw new Error('Dados da empresa são obrigatórios para gerar o header do lote');
   }
 
-  try {
-    return [
-      BANK_CODES.SANTANDER, // 1-3 - Código do Banco (033)
-      String(numero_lote).padStart(4, '0'), // 4-7 - Número do Lote
-      '1', // 8-8 - Tipo de Registro (1 = Header de Lote)
-      'C', // 9-9 - Tipo de Operação (C = Crédito)
-      tipo_servico, // 10-11 - Tipo de Serviço
-      forma_pagamento, // 12-13 - Forma de Lançamento
-      '045', // 14-16 - Número da Versão do Layout do Lote
-      ' ', // 17-17 - Uso Exclusivo FEBRABAN/CNAB
-      empresa.tipo_inscricao, // 18-18 - Tipo de Inscrição da Empresa
-      empresa.inscricao_numero.padStart(14, '0'), // 19-32 - Número de Inscrição da Empresa
-      empresa.codigo_convenio.padStart(20, ' '), // 33-52 - Código do Convênio no Banco
-      empresa.agencia.padStart(5, '0'), // 53-57 - Agência Mantenedora da Conta
-      ' ', // 58-58 - Dígito Verificador da Agência
-      empresa.conta.padStart(12, '0'), // 59-70 - Número da Conta
-      empresa.dac.padStart(1, '0'), // 71-71 - Dígito Verificador da Conta
-      ' ', // 72-72 - Dígito Verificador da Ag/Conta
-      empresa.nome.padEnd(30, ' '), // 73-102 - Nome da Empresa
-      ' '.repeat(40), // 103-142 - Finalidade do Lote
-      ' '.repeat(30), // 143-172 - Histórico de C/C
-      empresa.endereco.logradouro.padEnd(30, ' '), // 173-202 - Endereço
-      empresa.endereco.numero.padStart(5, '0'), // 203-207 - Número
-      empresa.endereco.complemento.padEnd(15, ' '), // 208-222 - Complemento
-      empresa.endereco.cidade.padEnd(20, ' '), // 223-242 - Cidade
-      empresa.endereco.cep.padStart(8, '0'), // 243-250 - CEP
-      empresa.endereco.estado.padEnd(2, ' '), // 251-252 - Estado
-      ' '.repeat(8), // 253-260 - Uso Exclusivo FEBRABAN/CNAB
-      ' '.repeat(10), // 261-270 - Ocorrências para o Retorno
-    ].join('');
-
-  } catch (error) {
-    throw new Error(`Erro ao gerar header do lote: ${error.message}`);
+  if (!numero_lote) {
+    throw new Error('Número do lote é obrigatório para gerar o header do lote');
   }
+
+  // Define os tipos de serviço e finalidade com base no tipo de pagamento
+  let tipoServico = '30'; // Padrão para pagamento de salários
+  let formaPagamento = '01'; // Padrão para crédito em conta
+  let finalidadeLote = '01'; // Padrão para folha de pagamento
+
+  switch (tipoPagamento) {
+    case 'salarios':
+      tipoServico = '30';
+      finalidadeLote = '01';
+      break;
+    case 'fornecedores':
+      tipoServico = '20';
+      finalidadeLote = '20';
+      break;
+    case 'boletos':
+      tipoServico = '98';
+      finalidadeLote = '10';
+      break;
+    case 'tributos':
+      tipoServico = '11';
+      finalidadeLote = '35';
+      break;
+    case 'pix':
+      tipoServico = '40';
+      finalidadeLote = '100';
+      break;
+  }
+
+  // Formata o número de inscrição (CPF/CNPJ)
+  const inscricaoNumero = formatarDocumento(empresa.inscricao_numero);
+  
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
+
+  // Constrói o header do lote
+  const header = [
+    '033',                                      // 01.1 - Código do Banco na Compensação (Santander = 033)
+    lote,                                       // 02.1 - Lote de Serviço
+    '1',                                        // 03.1 - Tipo de Registro (1 = Header de Lote)
+    'C',                                        // 04.1 - Tipo de Operação (C = Crédito)
+    tipoServico,                                // 05.1 - Tipo de Serviço
+    formaPagamento,                             // 06.1 - Forma de Lançamento
+    '045',                                      // 07.1 - Nº da Versão do Layout do Lote
+    ' ',                                        // 08.1 - Uso Exclusivo FEBRABAN/CNAB
+    empresa.tipo_inscricao || '2',              // 09.1 - Tipo de Inscrição da Empresa (1=CPF, 2=CNPJ)
+    inscricaoNumero,                            // 10.1 - Número de Inscrição da Empresa (CPF/CNPJ)
+    formatarTexto(empresa.convenio || '', 20),  // 11.1 - Código do Convênio no Banco
+    formatarNumero(empresa.agencia || '', 5),   // 12.1 - Agência Mantenedora da Conta
+    formatarTexto(empresa.agencia_dv || '', 1), // 13.1 - Dígito Verificador da Agência
+    formatarNumero(empresa.conta || '', 12),    // 14.1 - Número da Conta Corrente
+    formatarTexto(empresa.dac || '', 1),        // 15.1 - Dígito Verificador da Conta
+    ' ',                                        // 16.1 - Dígito Verificador da Ag/Conta
+    formatarTexto(empresa.nome || '', 30),      // 17.1 - Nome da Empresa
+    formatarTexto('', 40),                      // 18.1 - Mensagem
+    formatarTexto(empresa.logradouro || '', 30),// 19.1 - Logradouro do Endereço da Empresa
+    formatarNumero(empresa.numero || '', 5),    // 20.1 - Número do Endereço da Empresa
+    formatarTexto(empresa.complemento || '', 15),// 21.1 - Complemento do Endereço
+    formatarTexto(empresa.cidade || '', 20),    // 22.1 - Cidade
+    formatarNumero(empresa.cep || '', 8),       // 23.1 - CEP
+    formatarTexto(empresa.uf || '', 2),         // 24.1 - UF
+    formatarTexto(finalidadeLote, 2),           // 25.1 - Finalidade do Lote
+    ' '.repeat(16)                              // 26.1 - Uso Exclusivo FEBRABAN/CNAB (ajustado para 16 caracteres)
+  ].join('');
+
+  // Valida o tamanho do header (deve ter 240 posições)
+  if (header.length !== 240) {
+    throw new Error(`Tamanho inválido do header do lote: ${header.length} caracteres (esperado: 240)`);
+  }
+
+  return header;
 }
 
 /**
- * Gera o trailer do lote para o Santander
- * @param {Object} params - Parâmetros do trailer do lote
- * @param {number} params.numero_lote - Número do lote
- * @param {number} params.quantidade_registros - Quantidade de registros no lote
- * @param {number} params.somatoria_valores - Somatória dos valores do lote
- * @returns {string} - Linha do trailer do lote
+ * Gera o trailer do lote CNAB240
+ * @param {number} numero_lote - Número do lote
+ * @param {number} numero_registro - Número de registros no lote
+ * @param {number} somatoria_valores - Somatória dos valores do lote
+ * @returns {string} - Trailer do lote formatado
  */
-function gerarTrailerLote(params) {
-  const { numero_lote, quantidade_registros, somatoria_valores } = params;
-
-  if (!numero_lote || !quantidade_registros || !somatoria_valores) {
-    throw new Error('Parâmetros obrigatórios não fornecidos para o trailer do lote');
+function gerarTrailerLote(numero_lote, numero_registro, somatoria_valores = 0) {
+  if (!numero_lote) {
+    throw new Error('Número do lote é obrigatório para gerar o trailer do lote');
   }
 
-  try {
-    const valorTotal = Math.round(somatoria_valores * 100).toString().padStart(18, '0');
+  // Formata o número do lote
+  const lote = formatarNumero(numero_lote, 4);
 
-    return [
-      BANK_CODES.SANTANDER, // 1-3 - Código do Banco (033)
-      String(numero_lote).padStart(4, '0'), // 4-7 - Número do Lote
-      '5', // 8-8 - Tipo de Registro (5 = Trailer de Lote)
-      ' '.repeat(9), // 9-17 - Uso Exclusivo FEBRABAN/CNAB
-      String(quantidade_registros + 2).padStart(6, '0'), // 18-23 - Quantidade de Registros no Lote
-      valorTotal, // 24-41 - Somatória dos Valores
-      '0'.repeat(18), // 42-59 - Somatória Quantidade Moeda
-      '0'.repeat(6), // 60-65 - Número Aviso Débito
-      ' '.repeat(165), // 66-230 - Uso Exclusivo FEBRABAN/CNAB
-      ' '.repeat(10), // 231-240 - Códigos de Ocorrência
-    ].join('');
+  // Formata a quantidade de registros no lote (incluindo header e trailer de lote)
+  const qtdRegistros = formatarNumero(numero_registro + 2, 6);
 
-  } catch (error) {
-    throw new Error(`Erro ao gerar trailer do lote: ${error.message}`);
+  // Formata a somatória dos valores
+  const somatoriaValores = formatarValor(somatoria_valores, 18, 2);
+
+  // Constrói o trailer do lote
+  const trailer = [
+    '033',                                    // 01.5 - Código do Banco na Compensação
+    lote,                                     // 02.5 - Lote de Serviço
+    '5',                                      // 03.5 - Tipo de Registro (5 = Trailer de Lote)
+    ' '.repeat(9),                            // 04.5 - Uso Exclusivo FEBRABAN/CNAB
+    qtdRegistros,                             // 05.5 - Quantidade de Registros no Lote
+    somatoriaValores,                         // 06.5 - Somatória dos Valores
+    '000000000000000000',                     // 07.5 - Somatória de Quantidade de Moedas
+    '000000000000',                           // 08.5 - Número Aviso de Débito
+    ' '.repeat(165)                           // 09.5 - Uso Exclusivo FEBRABAN/CNAB
+  ].join('');
+
+  // Valida o tamanho do trailer (deve ter 240 posições)
+  if (trailer.length !== 240) {
+    throw new Error(`Tamanho inválido do trailer do lote: ${trailer.length} caracteres (esperado: 240)`);
   }
+
+  return trailer;
 }
 
 module.exports = {

@@ -30,16 +30,6 @@ app.use(cors());
 // Middleware para logging
 app.use(morgan('dev'));
 
-// Middleware para tratamento de erros
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Erro interno do servidor',
-    error: err.message
-  });
-});
-
 // Rota de status/health check
 app.get('/api/status', (req, res) => {
   res.status(200).json({
@@ -102,6 +92,24 @@ app.use('*', (req, res) => {
     success: false,
     message: 'Endpoint não encontrado'
   });
+});
+
+// Middleware para tratamento de erros
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Erro interno do servidor',
+    error: err.message
+  });
+});
+
+// Definindo a porta
+const PORT = process.env.PORT || 3000;
+
+// Iniciando o servidor
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 // Exportação da aplicação

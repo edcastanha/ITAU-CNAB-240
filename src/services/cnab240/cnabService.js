@@ -7,14 +7,14 @@
 const fs = require('fs');
 const path = require('path');
 const moment = require('moment');
-const { formatarData, formatarValor } = require('../../utils/formatters');
+const { formatarData, formatarValor, formatarNumero, formatarTexto, formatarDocumento, formatarCodigoBanco, formatarAgencia, formatarConta } = require('../../utils/formatters');
 
 const { gerarHeaderArquivo, gerarTrailerArquivo } = require('./headerService');
 const { gerarHeaderLote, gerarTrailerLote } = require('./loteService');
-const { gerarSegmentoA, gerarSegmentoB, gerarSegmentoP, gerarSegmentoQ, gerarSegmentoR } = require('./segmentoService');
+const { gerarSegmentoA, gerarSegmentoB } = require('./segmentoService');
 const { gerarSegmentoJ, gerarSegmentoJ52, gerarSegmentoJ52PIX } = require('./segmentoBoletoService');
 const { gerarSegmentoO, gerarSegmentoN, gerarSegmentoW } = require('./segmentoTributoService');
-const { gerarSegmentoC, gerarSegmentoD } = require('./segmentoSalarioService');
+const { gerarSegmentoP, gerarSegmentoQ, gerarSegmentoR } = require('./segmentoSalarioService');
 
 const { SERVICE_TYPES, PAYMENT_FORMS } = require('../../config/constants');
 
@@ -44,137 +44,103 @@ async function gerarArquivoCNAB240(params, outputPath) {
     const linhas = [];
     
     // Gera o header do arquivo
-    const headerArquivo = gerarHeaderArquivo({
-      empresa,
-      data_geracao: moment().format('DDMMYYYY'),
-      hora_geracao: moment().format('HHmmss')
-    });
+    const headerArquivo = gerarHeaderArquivo(empresa);
     linhas.push(headerArquivo);
     quantidadeRegistros++;
     
     // Processa cada lote
     for (const lote of lotes) {
       // Valida o lote
-      if (!lote.tipo_servico || !lote.forma_pagamento || !lote.pagamentos) {
-        throw new Error(`Lote ${quantidadeLotes + 1} inválido: tipo de serviço, forma de pagamento ou pagamentos não fornecidos`);
+      if (!lote.tipo_servico || !lote.pagamentos) {
+        throw new Error(`Lote ${quantidadeLotes + 1} inválido: tipo de serviço ou pagamentos não fornecidos`);
       }
       
       // Incrementa o contador de lotes
       quantidadeLotes++;
       
-      // Gera o header do lote
-      const headerLote = gerarHeaderLote({
-        empresa,
-        numero_lote: quantidadeLotes,
-        tipo_servico: lote.tipo_servico,
-        forma_pagamento: lote.forma_pagamento,
-        finalidade_lote: lote.finalidade_lote
-      });
-      linhas.push(headerLote);
-      quantidadeRegistros++;
-      
-      // Processa cada pagamento do lote
-      for (const pagamento of lote.pagamentos) {
-        // Verifica o tipo de serviço
-        if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_SALARIOS) {
-          // Gera os segmentos P, Q e R para pagamento de salários
-          const segmentoP = gerarSegmentoP({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            funcionario: pagamento.funcionario
-          });
-          linhas.push(segmentoP);
-          quantidadeRegistros++;
-          
-          const segmentoQ = gerarSegmentoQ({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            funcionario: pagamento.funcionario
-          });
-          linhas.push(segmentoQ);
-          quantidadeRegistros++;
-          
-          const segmentoR = gerarSegmentoR({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            funcionario: pagamento.funcionario
-          });
-          linhas.push(segmentoR);
-          quantidadeRegistros++;
-          
-        } else if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_FORNECEDORES) {
-          // Gera os segmentos A e B para pagamento de fornecedores
-          const segmentoA = gerarSegmentoA({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            favorecido: pagamento.favorecido,
-            pagamento: pagamento.dados
-          });
-          linhas.push(segmentoA);
-          quantidadeRegistros++;
-          
-          const segmentoB = gerarSegmentoB({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            favorecido: pagamento.favorecido
-          });
-          linhas.push(segmentoB);
-          quantidadeRegistros++;
-          
-        } else if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_TRIBUTOS) {
-          // Gera os segmentos N, O e W para pagamento de tributos
-          const segmentoN = gerarSegmentoN({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            tributo: pagamento.tributo
-          });
-          linhas.push(segmentoN);
-          quantidadeRegistros++;
-          
-          if (pagamento.tributo.codigo_barras) {
-            const segmentoO = gerarSegmentoO({
-              numero_lote: quantidadeLotes,
-              numero_registro: quantidadeRegistros + 1,
-              tributo: pagamento.tributo
-            });
-            linhas.push(segmentoO);
-            quantidadeRegistros++;
-          }
-          
-          const segmentoW = gerarSegmentoW({
-            numero_lote: quantidadeLotes,
-            numero_registro: quantidadeRegistros + 1,
-            tributo: pagamento.tributo
-          });
-          linhas.push(segmentoW);
-          quantidadeRegistros++;
-        }
+      // Determina o tipo de pagamento e processa o lote adequadamente
+      if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_SALARIOS) {
+        // Processa o lote de salários
+        const resultadoLote = processarLoteSalarios({
+          empresa,
+          numero_lote: quantidadeLotes,
+          pagamentos: lote.pagamentos,
+          codigo_banco: lote.codigo_banco,
+          tipo_servico: lote.tipo_servico,
+          forma_pagamento: lote.forma_pagamento,
+          finalidade_lote: lote.finalidade_lote
+        });
+        
+        // Adiciona as linhas geradas
+        linhas.push(...resultadoLote.linhas);
+        
+        // Atualiza a quantidade de registros
+        quantidadeRegistros += resultadoLote.quantidade_registros;
+      } else if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_FORNECEDORES) {
+        // Processa o lote de fornecedores
+        const resultadoLote = processarLoteFornecedores({
+          empresa,
+          numero_lote: quantidadeLotes,
+          tipo_servico: lote.tipo_servico,
+          forma_pagamento: lote.forma_pagamento,
+          pagamentos: lote.pagamentos
+        });
+        
+        // Adiciona as linhas geradas
+        linhas.push(...resultadoLote.linhas);
+        
+        // Atualiza a quantidade de registros
+        quantidadeRegistros += resultadoLote.quantidade_registros;
+      } else if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_TRIBUTOS) {
+        // Processa o lote de tributos
+        const resultadoLote = processarLoteTributos({
+          empresa,
+          numero_lote: quantidadeLotes,
+          pagamentos: lote.pagamentos
+        });
+        
+        // Adiciona as linhas geradas
+        linhas.push(...resultadoLote.linhas);
+        
+        // Atualiza a quantidade de registros
+        quantidadeRegistros += resultadoLote.quantidade_registros;
+      } else if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_BOLETOS) {
+        // Processa o lote de boletos
+        const resultadoLote = processarLoteBoletos({
+          empresa,
+          numero_lote: quantidadeLotes,
+          tipo_servico: lote.tipo_servico,
+          forma_pagamento: lote.forma_pagamento,
+          pagamentos: lote.pagamentos
+        });
+        
+        // Adiciona as linhas geradas
+        linhas.push(...resultadoLote.linhas);
+        
+        // Atualiza a quantidade de registros
+        quantidadeRegistros += resultadoLote.quantidade_registros;
+      } else if (lote.tipo_servico === SERVICE_TYPES.PAGAMENTO_PIX) {
+        // Processa o lote de PIX
+        const resultadoLote = processarLotePIX({
+          empresa,
+          numero_lote: quantidadeLotes,
+          tipo_servico: lote.tipo_servico,
+          forma_pagamento: lote.forma_pagamento,
+          pagamentos: lote.pagamentos
+        });
+        
+        // Adiciona as linhas geradas
+        linhas.push(...resultadoLote.linhas);
+        
+        // Atualiza a quantidade de registros
+        quantidadeRegistros += resultadoLote.quantidade_registros;
+      } else {
+        throw new Error(`Tipo de serviço não suportado: ${lote.tipo_servico}`);
       }
-      
-      // Gera o trailer do lote
-      const trailerLote = gerarTrailerLote({
-        numero_lote: quantidadeLotes,
-        quantidade_registros: quantidadeRegistros,
-        somatoria_valores: lote.pagamentos.reduce((total, pagamento) => {
-          if (pagamento.funcionario) {
-            return total + pagamento.funcionario.valor;
-          } else if (pagamento.favorecido && pagamento.dados) {
-            return total + pagamento.dados.valor;
-          } else if (pagamento.tributo) {
-            return total + pagamento.tributo.valor;
-          }
-          return total;
-        }, 0)
-      });
-      linhas.push(trailerLote);
-      quantidadeRegistros++;
     }
     
     // Gera o trailer do arquivo
-    const trailerArquivo = gerarTrailerArquivo({
-      quantidade_lotes: quantidadeLotes,
-      quantidade_registros: quantidadeRegistros + 1 // Inclui o próprio trailer
-    });
+    const trailerArquivo = gerarTrailerArquivo(quantidadeLotes, quantidadeRegistros + 1); // Inclui o próprio trailer
     linhas.push(trailerArquivo);
     quantidadeRegistros++;
     
@@ -202,16 +168,11 @@ function processarLoteFornecedores(params) {
   
   // Inicializa arrays e contadores
   const linhas = [];
-  let quantidadeRegistros = 2; // Header e Trailer de lote
+  let quantidadeRegistros = 0;
   let somatoriaValores = 0;
   
   // Gera o header de lote
-  const headerLote = gerarHeaderLote({
-    numero_lote,
-    tipo_servico,
-    forma_pagamento,
-    empresa
-  });
+  const headerLote = gerarHeaderLote(empresa, numero_lote, 'fornecedores');
   linhas.push(headerLote);
   
   // Processa cada pagamento
@@ -232,7 +193,7 @@ function processarLoteFornecedores(params) {
     quantidadeRegistros++;
     
     // Adiciona o valor ao somatório
-    somatoriaValores += pagamento.dados.valor || 0;
+    somatoriaValores += Number(pagamento.dados?.valor || 0);
     
     // Gera o segmento B se necessário
     if (pagamento.favorecido.endereco || pagamento.pix) {
@@ -249,16 +210,12 @@ function processarLoteFornecedores(params) {
   }
   
   // Gera o trailer de lote
-  const trailerLote = gerarTrailerLote({
-    numero_lote,
-    quantidade_registros: quantidadeRegistros,
-    somatoria_valores: somatoriaValores
-  });
+  const trailerLote = gerarTrailerLote(numero_lote, quantidadeRegistros, somatoriaValores);
   linhas.push(trailerLote);
   
   return {
     linhas,
-    quantidade_registros: quantidadeRegistros
+    quantidade_registros: quantidadeRegistros + 2 // Header e trailer do lote
   };
 }
 
@@ -272,16 +229,11 @@ function processarLoteBoletos(params) {
   
   // Inicializa arrays e contadores
   const linhas = [];
-  let quantidadeRegistros = 2; // Header e Trailer de lote
+  let quantidadeRegistros = 0;
   let somatoriaValores = 0;
   
   // Gera o header de lote
-  const headerLote = gerarHeaderLote({
-    numero_lote,
-    tipo_servico,
-    forma_pagamento,
-    empresa
-  });
+  const headerLote = gerarHeaderLote(empresa, numero_lote, 'boletos');
   linhas.push(headerLote);
   
   // Processa cada pagamento
@@ -300,7 +252,7 @@ function processarLoteBoletos(params) {
     quantidadeRegistros++;
     
     // Adiciona o valor ao somatório
-    somatoriaValores += pagamento.boleto.valor || 0;
+    somatoriaValores += Number(pagamento.boleto?.valor || 0);
     
     // Gera o segmento J-52 se necessário
     if (pagamento.pagador || pagamento.beneficiario) {
@@ -318,16 +270,12 @@ function processarLoteBoletos(params) {
   }
   
   // Gera o trailer de lote
-  const trailerLote = gerarTrailerLote({
-    numero_lote,
-    quantidade_registros: quantidadeRegistros,
-    somatoria_valores: somatoriaValores
-  });
+  const trailerLote = gerarTrailerLote(numero_lote, quantidadeRegistros, somatoriaValores);
   linhas.push(trailerLote);
   
   return {
     linhas,
-    quantidade_registros: quantidadeRegistros
+    quantidade_registros: quantidadeRegistros + 2 // Header e trailer do lote
   };
 }
 
@@ -341,16 +289,11 @@ function processarLotePIX(params) {
   
   // Inicializa arrays e contadores
   const linhas = [];
-  let quantidadeRegistros = 2; // Header e Trailer de lote
+  let quantidadeRegistros = 0;
   let somatoriaValores = 0;
   
   // Gera o header de lote
-  const headerLote = gerarHeaderLote({
-    numero_lote,
-    tipo_servico,
-    forma_pagamento,
-    empresa
-  });
+  const headerLote = gerarHeaderLote(empresa, numero_lote, 'pix');
   linhas.push(headerLote);
   
   // Processa cada pagamento
@@ -369,7 +312,7 @@ function processarLotePIX(params) {
     quantidadeRegistros++;
     
     // Adiciona o valor ao somatório
-    somatoriaValores += pagamento.boleto.valor || 0;
+    somatoriaValores += Number(pagamento.boleto?.valor || 0);
     
     // Gera o segmento J-52 PIX
     numeroRegistro++;
@@ -383,16 +326,12 @@ function processarLotePIX(params) {
   }
   
   // Gera o trailer de lote
-  const trailerLote = gerarTrailerLote({
-    numero_lote,
-    quantidade_registros: quantidadeRegistros,
-    somatoria_valores: somatoriaValores
-  });
+  const trailerLote = gerarTrailerLote(numero_lote, quantidadeRegistros, somatoriaValores);
   linhas.push(trailerLote);
   
   return {
     linhas,
-    quantidade_registros: quantidadeRegistros
+    quantidade_registros: quantidadeRegistros + 2 // Header e trailer do lote
   };
 }
 
@@ -411,14 +350,11 @@ function processarLoteTributos(params) {
   
   // Inicializa contadores e arrays
   let linhas = [];
-  let quantidadeRegistros = 2; // Header e trailer de lote
+  let quantidadeRegistros = 0;
+  let somatoriaValores = 0;
   
   // Gera o header do lote
-  const headerLote = gerarHeaderLote({
-    empresa,
-    numero_lote,
-    tipo_servico: SERVICE_TYPES.TRIBUTOS
-  });
+  const headerLote = gerarHeaderLote(empresa, numero_lote, 'tributos');
   linhas.push(headerLote);
   
   // Processa cada pagamento
@@ -429,62 +365,52 @@ function processarLoteTributos(params) {
       throw new Error('Dados do tributo não fornecidos');
     }
     
+    // Adiciona o valor ao somatório
+    somatoriaValores += Number(tributo.valor || 0);
+    
     // Gera os segmentos específicos para cada tipo de tributo
     if (tributo.codigo_barras) {
       // Tributo com código de barras
-      const segmentoO = gerarSegmentoO({
+      const segmentoO = gerarSegmentoO(
         numero_lote,
-        numero_registro: quantidadeRegistros,
+        ++quantidadeRegistros,
         tributo
-      });
+      );
       linhas.push(segmentoO);
-      quantidadeRegistros++;
       
-      const segmentoN = gerarSegmentoN({
+      const segmentoN = gerarSegmentoN(
         numero_lote,
-        numero_registro: quantidadeRegistros,
+        ++quantidadeRegistros,
         tributo
-      });
+      );
       linhas.push(segmentoN);
-      quantidadeRegistros++;
       
-      const segmentoW = gerarSegmentoW({
-        numero_lote,
-        numero_registro: quantidadeRegistros,
-        tributo
-      });
-      linhas.push(segmentoW);
-      quantidadeRegistros++;
+      if (tributo.tipo === 'GARE') {
+        const segmentoW = gerarSegmentoW(
+          numero_lote,
+          ++quantidadeRegistros,
+          tributo
+        );
+        linhas.push(segmentoW);
+      }
     } else {
       // DARF
-      const segmentoO = gerarSegmentoO({
+      const segmentoN = gerarSegmentoN(
         numero_lote,
-        numero_registro: quantidadeRegistros,
+        ++quantidadeRegistros,
         tributo
-      });
-      linhas.push(segmentoO);
-      quantidadeRegistros++;
-      
-      const segmentoN = gerarSegmentoN({
-        numero_lote,
-        numero_registro: quantidadeRegistros,
-        tributo
-      });
+      );
       linhas.push(segmentoN);
-      quantidadeRegistros++;
     }
   }
   
   // Gera o trailer do lote
-  const trailerLote = gerarTrailerLote({
-    numero_lote,
-    quantidade_registros: quantidadeRegistros
-  });
+  const trailerLote = gerarTrailerLote(numero_lote, quantidadeRegistros, somatoriaValores);
   linhas.push(trailerLote);
   
   return {
     linhas,
-    quantidade_registros: quantidadeRegistros
+    quantidade_registros: quantidadeRegistros + 2 // header e trailer do lote
   };
 }
 
@@ -497,7 +423,7 @@ function processarLoteTributos(params) {
  * @param {string} params.codigo_banco - Código do banco (opcional, padrão '033')
  * @param {string} params.tipo_servico - Tipo de serviço (opcional, padrão '30')
  * @param {string} params.forma_pagamento - Forma de pagamento (opcional, padrão '01')
- * @param {string} params.finalidade_lote - Finalidade do lote (opcional)
+ * @param {string} params.finalidade_lote - Finalidade do lote (opcional, padrão '01')
  * @returns {Object} Objeto com as linhas geradas e contadores
  */
 function processarLoteSalarios(params) {
@@ -508,7 +434,7 @@ function processarLoteSalarios(params) {
     codigo_banco = '033', // Santander como padrão
     tipo_servico = '30',  // Pagamento de Salários como padrão
     forma_pagamento = '01', // Crédito em Conta como padrão
-    finalidade_lote = '101' // Folha Mensal como padrão
+    finalidade_lote = '01' // Folha Mensal como padrão
   } = params;
 
   // Validações básicas
@@ -525,20 +451,13 @@ function processarLoteSalarios(params) {
   }
 
   // Inicializa contadores e arrays
-  let numero_registro = 1;
+  let numero_registro = 0;
   let somatoriaValores = 0;
   const linhas = [];
 
   try {
     // Gera header do lote
-    const headerLote = gerarHeaderLote({
-      empresa,
-      numero_lote,
-      codigo_banco,
-      tipo_servico,
-      forma_pagamento,
-      finalidade_lote
-    });
+    const headerLote = gerarHeaderLote(empresa, numero_lote, 'salarios');
     linhas.push(headerLote);
 
     // Processa cada pagamento
@@ -569,48 +488,40 @@ function processarLoteSalarios(params) {
       // Gera segmento P
       const segmentoP = gerarSegmentoP({
         numero_lote,
-        numero_registro,
+        numero_registro: ++numero_registro,
         funcionario,
         valor: pagamento.valor,
-        data_pagamento: pagamento.data_pagamento,
+        data_pagamento: pagamento.data_pagamento || new Date(),
         codigo_banco
       });
       linhas.push(segmentoP);
-      numero_registro++;
-      somatoriaValores += pagamento.valor;
+      somatoriaValores += Number(pagamento.valor || 0);
 
       // Gera segmento Q
       const segmentoQ = gerarSegmentoQ({
         numero_lote,
-        numero_registro,
+        numero_registro: ++numero_registro,
         funcionario,
         codigo_banco
       });
       linhas.push(segmentoQ);
-      numero_registro++;
 
       // Gera segmento R
       const segmentoR = gerarSegmentoR({
         numero_lote,
-        numero_registro,
+        numero_registro: ++numero_registro,
         funcionario
       });
       linhas.push(segmentoR);
-      numero_registro++;
     }
 
     // Gera trailer do lote
-    const trailerLote = gerarTrailerLote({
-      numero_lote,
-      numero_registro,
-      somatoria_valores: somatoriaValores,
-      codigo_banco
-    });
+    const trailerLote = gerarTrailerLote(numero_lote, numero_registro, somatoriaValores);
     linhas.push(trailerLote);
 
     return {
       linhas,
-      numero_registro,
+      quantidade_registros: numero_registro + 2, // Header e trailer do lote
       somatoria_valores: somatoriaValores
     };
   } catch (error) {
@@ -634,65 +545,12 @@ async function salvarArquivo(linhas, outputPath) {
   await fs.promises.writeFile(outputPath, linhas.join('\n'), 'utf8');
 }
 
-/**
- * Gera o trailer do lote
- * @param {Object} params - Parâmetros do trailer
- * @param {number} params.numero_lote - Número do lote
- * @param {number} params.numero_registro - Número do registro
- * @param {number} params.somatoria_valores - Somatória dos valores
- * @param {string} params.codigo_banco - Código do banco (opcional, padrão '033')
- * @returns {string} Linha do trailer do lote
- */
-function gerarTrailerLote(params) {
-  const {
-    numero_lote,
-    numero_registro,
-    somatoria_valores,
-    codigo_banco = '033'
-  } = params;
-
-  // Validações básicas
-  if (!numero_lote) {
-    throw new Error('Número do lote é obrigatório');
-  }
-
-  if (!numero_registro) {
-    throw new Error('Número do registro é obrigatório');
-  }
-
-  if (somatoria_valores === undefined) {
-    throw new Error('Somatória dos valores é obrigatória');
-  }
-
-  // Formata os campos
-  const codigoBanco = codigo_banco.padStart(3, '0');
-  const numeroLote = numero_lote.toString().padStart(4, '0');
-  const numeroRegistro = numero_registro.toString().padStart(6, '0');
-  const somatoriaValores = somatoria_valores.toString().padStart(18, '0');
-
-  // Constrói o trailer do lote
-  const trailerLote = [
-    codigoBanco,                    // 1-3: Código do banco
-    '0001',                         // 4-7: Lote de serviço
-    '5',                            // 8-8: Tipo de registro
-    ' '.repeat(9),                  // 9-17: Uso exclusivo FEBRABAN/CNAB
-    numeroRegistro,                 // 18-23: Quantidade de registros
-    somatoriaValores,               // 24-41: Somatória dos valores
-    ' '.repeat(199)                 // 42-240: Uso exclusivo FEBRABAN/CNAB
-  ].join('');
-
-  if (trailerLote.length !== 240) {
-    throw new Error('Trailer do lote deve ter 240 posições');
-  }
-
-  return trailerLote;
-}
-
 module.exports = {
   gerarArquivoCNAB240,
+  processarLoteSalarios,
   processarLoteFornecedores,
   processarLoteBoletos,
-  processarLotePIX,
   processarLoteTributos,
-  processarLoteSalarios
+  processarLotePIX,
+  salvarArquivo
 };
