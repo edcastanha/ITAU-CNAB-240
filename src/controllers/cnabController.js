@@ -261,15 +261,6 @@ const gerarCNABTributo = async (req, res) => {
     }
 };
 
-const gerarCNABPIX = async (req, res) => {
-    try {
-        const { empresa, pagamento } = req.body;
-        const lote = await processarLotePIX(empresa, 1, [pagamento]);
-        res.json({ sucesso: true, lote });
-    } catch (erro) {
-        res.status(400).json({ sucesso: false, erro: erro.message });
-    }
-};
 
 // Funções para lotes de pagamentos
 const gerarCNABLoteFornecedores = async (req, res) => {

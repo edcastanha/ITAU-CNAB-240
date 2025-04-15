@@ -7,38 +7,17 @@ const router = express.Router();
 const path = require('path');
 const { gerarArquivoCNAB240 } = require('../services/cnab240/cnabService');
 const { formatarData } = require('../utils/formatters');
+const { 
+  validateFornecedores, 
+  validateBoletos, 
+  validatePIX, 
+  validateTributos, 
+  validateSalarios, 
+  validatePersonalizado 
+} = require('../validators/validator');
 
 // Diretório para armazenar os arquivos gerados
 const OUTPUT_DIR = path.join(__dirname, '../../output');
-
-// Middleware para validação de dados
-const validarDados = (req, res, next) => {
-  const { empresa, pagamentos, pagamento } = req.body;
-
-  if (!empresa || !empresa.tipo_inscricao || !empresa.inscricao_numero || !empresa.nome || 
-      !empresa.agencia || !empresa.conta || !empresa.dac) {
-    return res.status(400).json({
-      success: false,
-      error: 'Dados da empresa incompletos'
-    });
-  }
-
-  if (pagamentos && pagamentos.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Lista de pagamentos vazia'
-    });
-  }
-
-  if (pagamento && !pagamento.tipo_inscricao) {
-    return res.status(400).json({
-      success: false,
-      error: 'Dados do pagamento incompletos'
-    });
-  }
-
-  next();
-};
 
 // Função auxiliar para determinar o tipo de serviço
 const getTipoServico = (tipo) => {
@@ -71,7 +50,7 @@ const gerarNomeArquivo = (tipo) => {
 }
 
 // Rotas para pagamentos em lote
-router.post('/fornecedores', validarDados, async (req, res) => {
+router.post('/fornecedores', validateFornecedores, async (req, res) => {
   try {
     const { empresa, pagamentos } = req.body;
     const nomeArquivo = gerarNomeArquivo('fornecedores');
@@ -92,7 +71,7 @@ router.post('/fornecedores', validarDados, async (req, res) => {
   }
 });
 
-router.post('/boletos', validarDados, async (req, res) => {
+router.post('/boletos', validateBoletos, async (req, res) => {
   try {
     const { empresa, pagamentos } = req.body;
     const nomeArquivo = gerarNomeArquivo('boletos');
@@ -113,7 +92,7 @@ router.post('/boletos', validarDados, async (req, res) => {
   }
 });
 
-router.post('/salarios', validarDados, async (req, res) => {
+router.post('/salarios', validateSalarios, async (req, res) => {
   try {
     const { empresa, pagamentos } = req.body;
     const nomeArquivo = gerarNomeArquivo('salarios');
@@ -134,7 +113,7 @@ router.post('/salarios', validarDados, async (req, res) => {
   }
 });
 
-router.post('/tributos', validarDados, async (req, res) => {
+router.post('/tributos', validateTributos, async (req, res) => {
   try {
     const { empresa, pagamentos } = req.body;
     const nomeArquivo = gerarNomeArquivo('tributos');
@@ -155,9 +134,9 @@ router.post('/tributos', validarDados, async (req, res) => {
   }
 });
 
-router.post('/pix', validarDados, async (req, res) => {
+router.post('/pix', validatePIX, async (req, res) => {
   try {
-    const { empresa, pagamentos } = req.body;
+    const { empresa, pagamentos, tipo_pix } = req.body;
     const nomeArquivo = gerarNomeArquivo('pix');
     const caminhoArquivo = path.join(OUTPUT_DIR, nomeArquivo);
     
@@ -166,7 +145,8 @@ router.post('/pix', validarDados, async (req, res) => {
       lotes: [{
         tipo_servico: getTipoServico('pix'),
         forma_pagamento: getFormaPagamento('pix'),
-        pagamentos
+        pagamentos,
+        tipo_pix
       }]
     }, caminhoArquivo);
     
@@ -177,7 +157,7 @@ router.post('/pix', validarDados, async (req, res) => {
 });
 
 // Rotas para pagamentos individuais
-router.post('/fornecedores/individual', validarDados, async (req, res) => {
+router.post('/fornecedores/individual', validateFornecedores, async (req, res) => {
   try {
     const { empresa, pagamento } = req.body;
     const nomeArquivo = gerarNomeArquivo('fornecedores');
@@ -198,7 +178,7 @@ router.post('/fornecedores/individual', validarDados, async (req, res) => {
   }
 });
 
-router.post('/boletos/individual', validarDados, async (req, res) => {
+router.post('/boletos/individual', validateBoletos, async (req, res) => {
   try {
     const { empresa, pagamento } = req.body;
     const nomeArquivo = gerarNomeArquivo('boletos');
@@ -219,7 +199,7 @@ router.post('/boletos/individual', validarDados, async (req, res) => {
   }
 });
 
-router.post('/salarios/individual', validarDados, async (req, res) => {
+router.post('/salarios/individual', validateSalarios, async (req, res) => {
   try {
     const { empresa, pagamento } = req.body;
     const nomeArquivo = gerarNomeArquivo('salarios');
@@ -240,7 +220,7 @@ router.post('/salarios/individual', validarDados, async (req, res) => {
   }
 });
 
-router.post('/tributos/individual', validarDados, async (req, res) => {
+router.post('/tributos/individual', validateTributos, async (req, res) => {
   try {
     const { empresa, pagamento } = req.body;
     const nomeArquivo = gerarNomeArquivo('tributos');
@@ -261,9 +241,9 @@ router.post('/tributos/individual', validarDados, async (req, res) => {
   }
 });
 
-router.post('/pix/individual', validarDados, async (req, res) => {
+router.post('/pix/individual', validatePIX, async (req, res) => {
   try {
-    const { empresa, pagamento } = req.body;
+    const { empresa, pagamento, tipo_pix } = req.body;
     const nomeArquivo = gerarNomeArquivo('pix');
     const caminhoArquivo = path.join(OUTPUT_DIR, nomeArquivo);
     
@@ -272,8 +252,27 @@ router.post('/pix/individual', validarDados, async (req, res) => {
       lotes: [{
         tipo_servico: getTipoServico('pix'),
         forma_pagamento: getFormaPagamento('pix'),
-        pagamentos: [pagamento]
+        pagamentos: [pagamento],
+        tipo_pix
       }]
+    }, caminhoArquivo);
+    
+    res.json({ success: true, arquivo: nomeArquivo });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Adicionar rota para pagamentos personalizados com múltiplos lotes
+router.post('/personalizado', validatePersonalizado, async (req, res) => {
+  try {
+    const { empresa, lotes } = req.body;
+    const nomeArquivo = gerarNomeArquivo('personalizado');
+    const caminhoArquivo = path.join(OUTPUT_DIR, nomeArquivo);
+    
+    await gerarArquivoCNAB240({
+      empresa,
+      lotes
     }, caminhoArquivo);
     
     res.json({ success: true, arquivo: nomeArquivo });

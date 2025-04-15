@@ -11,8 +11,8 @@ const {
 } = require('../../utils/formatters');
 
 const { 
-  BANK_CODES, 
-  RECORD_TYPES,
+  BANCOS, 
+  TIPOS_REGISTRO,
   INSCRIPTION_TYPES
 } = require('../../config/constants');
 
@@ -46,13 +46,13 @@ function gerarSegmentoC(params) {
   let segmento = '';
   
   // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
+  segmento += formatNumeric(BANCOS.ITAU, 3);
   
   // Código do Lote (posição: 4-7)
   segmento += formatNumeric(numero_lote, 4);
   
   // Tipo de Registro (posição: 8-8) - Para Segmento C, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
+  segmento += TIPOS_REGISTRO.DETALHE;
   
   // Número do Registro (posição: 9-13)
   segmento += formatNumeric(numero_registro, 5);
@@ -121,13 +121,13 @@ function gerarSegmentoD(params) {
   let segmento = '';
   
   // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
+  segmento += formatNumeric(BANCOS.ITAU, 3);
   
   // Código do Lote (posição: 4-7)
   segmento += formatNumeric(numero_lote, 4);
   
   // Tipo de Registro (posição: 8-8) - Para Segmento D, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
+  segmento += TIPOS_REGISTRO.DETALHE;
   
   // Número do Registro (posição: 9-13)
   segmento += formatNumeric(numero_registro, 5);
@@ -189,7 +189,7 @@ function gerarSegmentoP(params) {
   segmento += formatNumeric(numero_lote, 4);
   
   // Tipo de Registro (posição: 8-8) - Para Segmento P, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
+  segmento += TIPOS_REGISTRO.DETALHE;
   
   // Número do Registro (posição: 9-13)
   segmento += formatNumeric(numero_registro, 5);
@@ -289,7 +289,7 @@ function gerarSegmentoQ(params) {
   segmento += formatNumeric(numero_lote, 4);
   
   // Tipo de Registro (posição: 8-8) - Para Segmento Q, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
+  segmento += TIPOS_REGISTRO.DETALHE;
   
   // Número do Registro (posição: 9-13)
   segmento += formatNumeric(numero_registro, 5);
@@ -372,13 +372,13 @@ function gerarSegmentoR(params) {
   let segmento = '';
   
   // Código do Banco (posição: 1-3)
-  segmento += formatNumeric(BANK_CODES.ITAU, 3);
+  segmento += formatNumeric(BANCOS.ITAU, 3);
   
   // Código do Lote (posição: 4-7)
   segmento += formatNumeric(numero_lote, 4);
   
   // Tipo de Registro (posição: 8-8) - Para Segmento R, sempre '3'
-  segmento += RECORD_TYPES.DETALHE;
+  segmento += TIPOS_REGISTRO.DETALHE;
   
   // Número do Registro (posição: 9-13)
   segmento += formatNumeric(numero_registro, 5);
