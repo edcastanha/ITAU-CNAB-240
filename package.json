@@ -41,5 +41,13 @@
     "rest"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/edcastanha/ITAU-CNAB-240.git"
+  },
+  "bugs": {
+    "url": "https://github.com/edcastanha/ITAU-CNAB-240/issues"
+  },
+  "homepage": "https://github.com/edcastanha/ITAU-CNAB-240#readme"
 }
