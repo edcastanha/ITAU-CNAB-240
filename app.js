@@ -41,7 +41,7 @@ app.use((err, req, res, next) => {
 });
 
 // Rota de status/health check
-app.get('/api/status', (req, res) => {
+app.get('/api/status/', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'API CNAB 240 está funcionando',
@@ -51,10 +51,10 @@ app.get('/api/status', (req, res) => {
 });
 
 // Rotas da API
-app.use('/api/cnab240', cnabRoutes);
+app.use('/api/cnab240/', cnabRoutes);
 
 // Rota para documentação
-app.get('/api/docs', (req, res) => {
+app.get('/api/docs/', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Documentação da API CNAB 240',
