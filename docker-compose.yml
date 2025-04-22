@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000" # Mapeia a porta 3000 do container para a máquina host
+
+    command: npm run start # Comando para rodar o projeto no modo de produção
+    volumes:
+      - .:/app # Mapeia o diretório atual para o diretório /app no container

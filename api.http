@@ -1,14 +1,14 @@
 @host = http://localhost:3000
 
 
-
-
-GET {{host}}/api/doc HTTP/1.1
+### Health Check
+GET {{host}}/api/docs HTTP/1.1
 content-type: application/json
 
+### GET Status
+GET {{host}}/api/status HTTP/1.1
 
 ###
-
 POST {{host}}/api/cnab240/fornecedores HTTP/1.1
 content-type: application/json
 
